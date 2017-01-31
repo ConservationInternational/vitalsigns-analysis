@@ -39,7 +39,7 @@ field_size <- tbl(con, "flagging__agric_field_roster") %>%
   group_by(survey_uuid) %>%
   summarize(average_field_size = mean(ag2a_04, na.rm=T), total_acreage = sum(ag2a_04, na.rm=T))
 
-allvars <- merge(allvars, field_size, all.x=T, all.y=F)
+allvars <- merge(allvars, field_size, all.x=T)
 
 #####################
 # Intercropping  - agric_crops_by_field
@@ -55,7 +55,7 @@ intercropping$ag4a_04[intercropping$ag4a_04==2] <- 0
 intercropping <- intercropping %>% group_by(survey_uuid) %>%
   summarize(intercrop_rate = mean(ag4a_04, na.rm=T))
 
-allvars <- merge(allvars, intercropping, all.x=T, all.y=F)
+allvars <- merge(allvars, intercropping, all.x=T)
 
 #################################
 # Inputs - agric_field_details
@@ -115,7 +115,7 @@ inputs <- inputs %>% group_by(survey_uuid) %>%
 #             npk = mean(fd35_24a_npk, na.rm=T), mrp = mean(fd35_24a_mrp, na.rm=T)
             )
 
-allvars <- merge(allvars, inputs, all.x=T, all.y=F)
+allvars <- merge(allvars, inputs, all.x=T)
 
 ########################
 # Yields - get the Z score for crop-unit
@@ -144,7 +144,7 @@ for (c in unique(yields$cs)){
 
 yields <- yields %>% group_by(survey_uuid) %>% summarize(yield_quantile = mean(yield_quantile, na.rm=T))
 
-allvars <- merge(allvars, yields, all.x=T, all.y=F)
+allvars <- merge(allvars, yields, all.x=T)
 
 ########################
 #Hired labor per Area
@@ -174,7 +174,8 @@ labor_hired$labor_hired <- labor_hired$ag3a_38_1 + labor_hired$ag3a_38_4 + labor
 labor_hired <- labor_hired %>% group_by(survey_uuid) %>%
   summarize(labor_hired = sum(labor_hired, na.rm=T))
 
-allvars <- merge(allvars, labor_hired, all.x=T, all.y=F)
+allvars <- merge(allvars, labor_hired, all.x=T)
+allvars$labor_hired <- allvars$labor_hired/allvars$total_acreage
 
 ###########################
 #Household labor per Area
@@ -190,7 +191,8 @@ labor_hh <- labor_hh %>%
   summarize(labor_hh=sum(ag3a_70_preparing + ag3a_70_weeding +
                          ag3a_70_fertilizing + ag3a_70_harvesting, na.rm=T))
 
-allvars <- merge(allvars, labor_hh, all.x=T, all.y=F)
+allvars <- merge(allvars, labor_hh, all.x=T)
+allvars$labor_hh <- allvars$labor_hh/allvars$total_acreage
 
 #########################################################
 #Amount Sold
@@ -227,7 +229,7 @@ sold <- sold %>% group_by(survey_uuid) %>%
             avg_pct_crops_any_sold = mean(ag5a_01, na.rm=T)) %>%
   data.frame
 
-allvars <- merge(allvars, sold, all.x=T, all.y=F)
+allvars <- merge(allvars, sold, all.x=T)
 
 ###########################################
 # Irrigaion
@@ -243,7 +245,7 @@ irrig$ag3a_09[irrig$ag3a_09==2] <- 0
 irrig <- irrig %>% group_by(survey_uuid) %>%
   summarize(pct_fields_irrigated = mean(ag3a_09, na.rm=T))
 
-allvars <- merge(allvars, irrig, all.x=T, all.y=F)
+allvars <- merge(allvars, irrig, all.x=T)
 
 # Inorganic Fertilizers
 #  fd33_18a_* - Select all types of organic fertilizer that you used
@@ -269,7 +271,7 @@ seed$ag4a_19[seed$ag4a_19==2] <- 0
 
 seed <- seed %>% group_by(survey_uuid) %>% summarize(pct_buy_seed=mean(ag4a_19, na.rm=T))
 
-allvars <- merge(allvars, seed, all.x=T, all.y=F)
+allvars <- merge(allvars, seed, all.x=T)
 
 #################
 #Fallows
@@ -287,7 +289,7 @@ fallow$fallow <- mapply(fallow$ag2a_vs_2b1=='4', fallow$ag2a_vs_2c=='4', FUN=sum
 
 fallow <- fallow %>% group_by(survey_uuid) %>% summarize(fallow=sum(fallow, na.rm=T)/n())
 
-allvars <- merge(allvars, fallow, all.x=T, all.y=F)
+allvars <- merge(allvars, fallow, all.x=T)
 
 #################
 #Tools?
@@ -301,9 +303,11 @@ tools <- tbl(con, 'flagging__agric_implement') %>%
 
 tools$tractor <- tools$Tool.name=="TRACTOR PLOUGH" | tools$Tool.name=="TRACTOR" | tools$Tool.name=="TRACTOR HARROW"
 
+tools$ag11_01[!tools$tractor] <- 0
+
 tools <- tools %>% group_by(survey_uuid) %>% summarize(tractor=sum(tractor, na.rm=T))
 
-allvars <- merge(allvars, tools, all.x=T, all.y=F)
+allvars <- merge(allvars, tools, all.x=T)
 
 ###############################################
 #Get control variables
@@ -317,7 +321,7 @@ size <- tbl(con, "flagging__household_secB") %>%
   group_by(Household.ID) %>%
   summarize(hh_size=n())
 
-allvars <- merge(allvars, size, all.x=T, all.y=F)
+allvars <- merge(allvars, size, all.x=T)
 
 ##############################################
 #Get all dependant variables - Livelihoods
@@ -348,7 +352,7 @@ hhe$income_wage <- mapply(hhe$hh_e22_1*annualized[match(as.numeric(hhe$hh_e22_2)
 hhe <- hhe %>% group_by(Household.ID) %>% summarize(income_own=sum(income_own, na.rm=T),
                                                     income_wage=sum(income_wage, na.rm=T))
 
-allvars <- merge(allvars, hhe, all.x=T, all.y=F)
+allvars <- merge(allvars, hhe, all.x=T)
 
 # Ag Income - (((ag10a_21+ag10a_27)-ag10a_34) + ag7a_04 + ag10b_06 + (ag09_08 - ag09_11) + (ag5a_03 + ag5a_26)) * [[exchange rate]]
 #  agric_crops_by_hh; 
@@ -366,7 +370,7 @@ inc1[is.na(inc1)] <- 0
 
 inc1 <- inc1 %>% group_by(Household.ID) %>% summarize(income_crops=sum(income_crops, na.rm=T))
 
-allvars <- merge(allvars, inc1, all.x=T, all.y=F)
+allvars <- merge(allvars, inc1, all.x=T)
 allvars$income_crops[is.na(allvars$income_crops)] <- 0
 
 #  agric_perm_crop; 
@@ -382,7 +386,7 @@ inc2 <- inc2 %>%
   group_by(Household.ID) %>%
   summarize(income_perm_crop=sum(ag7a_04, na.rm=T))
 
-allvars <- merge(allvars, inc2, all.x=T, all.y=F)
+allvars <- merge(allvars, inc2, all.x=T)
 allvars$income_perm_crop[is.na(allvars$income_perm_crop)] <- 0
 
 #  agric_livestock_byproduct; 
@@ -398,7 +402,7 @@ inc3 <- inc3 %>%
   group_by(Household.ID) %>%
   summarize(income_lvstk_byprod=sum(ag10b_06, na.rm=T))
 
-allvars <- merge(allvars, inc3, all.x=T, all.y=F)
+allvars <- merge(allvars, inc3, all.x=T)
 allvars$income_lvstk_byprod[is.na(allvars$income_lvstk_byprod)] <- 0
 
 #  agric_byproduct; 
@@ -417,7 +421,7 @@ inc4[is.na(inc4)] <- 0
 
 inc4 <- inc4 %>% group_by(Household.ID) %>% summarize(income_byprod=sum(income_byprod, na.rm=T))
 
-allvars <- merge(allvars, inc4, all.x=T, all.y=F)
+allvars <- merge(allvars, inc4, all.x=T)
 allvars$income_byprod[is.na(allvars$income_byprod)] <- 0
 
 #  agric_livestock
@@ -439,7 +443,7 @@ inc5[is.na(inc5)] <- 0
 
 inc5 <- inc5 %>% group_by(Household.ID) %>% summarize(income_lvstk = sum(income_lvstk, na.rm=T))
 
-allvars <- merge(allvars, inc5, all.x=T, all.y=F)
+allvars <- merge(allvars, inc5, all.x=T)
 allvars$income_lvstk[is.na(allvars$income_lvstk)] <- 0
 
 # Ratio of Laborers to Dependants
@@ -466,12 +470,12 @@ ag_labor$work[which(ag_labor$ag3a_70_weeding==0 & ag_labor$ag3a_70_harvesting==0
 ag_labor$work[which(ag_labor$ag3a_70_weeding>0 | ag_labor$ag3a_70_harvesting>0 |
                         ag_labor$ag3a_70_preparing>0 | ag_labor$ag3a_70_fertilizing>0)] <- 1
 
-labor <- merge(hh_labor, ag_labor, all.x=F, all.y=F) %>% unique
+labor <- merge(hh_labor, ag_labor, all.x=F) %>% unique
 labor$ag_or_hh <- labor$work | labor$hh_e04
 
 labor <- labor %>% group_by(Household.ID) %>% summarize(labor_pct=mean(ag_or_hh, na.rm=T))
 
-allvars <- merge(allvars, labor, all.x=T, all.y=F)
+allvars <- merge(allvars, labor, all.x=T)
 
 # Education
 hh_ed <- tbl(con, 'flagging__household_secC') %>%
@@ -490,7 +494,7 @@ hh_ed$hh_c03[hh_ed$hh_c03==2] <- 0
 hh_ed <- hh_ed %>% group_by(Household.ID) %>% summarize(any_ed_perc=mean(hh_c03, na.rm=T),
                                                         literate_perc=mean(hh_c02, na.rm=T))
 
-allvars <- merge(allvars, hh_ed, all.x=T, all.y=F)
+allvars <- merge(allvars, hh_ed, all.x=T)
 
 # Employment Ratio
 hh_employ <- tbl(con, 'flagging__household_secE') %>%
@@ -503,17 +507,28 @@ hh_employ$hh_e08[hh_employ$hh_e08==2] <- 0
 hh_employ <- hh_employ %>% group_by(Household.ID) %>%
   summarize(employ_pct=mean(hh_e08, na.rm=T))
 
-allvars <- merge(allvars, hh_employ, all.x=T, all.y=F)
+allvars <- merge(allvars, hh_employ, all.x=T)
 
+####################################################
+#Not Enough Food in Past Year
+food <- tbl(con, 'flagging__household_secI') %>%
+  select(`Household ID`, flag, hh_i08) %>%
+  data.frame %>% flagFilter
+
+food$food <- as.numeric(food$hh_i08)
+food$food[food$food==2] <- 0
+
+food$hh_i08 <- NULL
+
+allvars <- merge(allvars, food, all.x=T)
+
+#####################
 # Nutrition
 nutr <- tbl(con, 'indicators__nutrition') %>%
-  group_by(`Household.ID`) %>%
-  summarize(mean_len_z=mean(zlen, na.rm=T),
-            mean_wei_z=mean(zwei, na.rm=T),
-            mean_wfl_z=mean(zwfl, na.rm=T)) %>%
+  select(Individual.ID, Household.ID, zlen, zwei, zwfl) %>%
   data.frame
 
-allvars <- merge(allvars, nutr, all.x=T, all.y=F) %>% unique
+allvars_ind <- merge(allvars, nutr, by='Household.ID', all.x=T)
 
 ######################################
 #Combine and Analyze
@@ -521,52 +536,74 @@ allvars <- merge(allvars, nutr, all.x=T, all.y=F) %>% unique
 library(lme4)
 library(lmerTest)
 
+plotIt <- function(mod, main){
+  dat <- summary(mod)$coefficients %>% as.data.frame
+  dat$Variables <- row.names(dat)
+  ggplot(dat) + geom_point(aes(Estimate, Variables)) + 
+    geom_errorbarh(aes(xmax=Estimate+`Std. Error`, xmin=Estimate-`Std. Error`, y=Variables, x=Estimate)) + 
+    geom_vline(xintercept=0, linetype='longdash') + 
+    ggtitle(main)
+  ggsave(paste0(main, '.png'))
+}
+
+rescale <- function(df){
+  for (i in names(df)[!names(df) %in% c('Individual.ID', 'Household.ID', 'survey_uuid', 'Country', 'Landscape..')]){
+    #print(i)
+    df[ , i] <- (df[ , i] + min(df[ , i], na.rm=T))/max(df[ , i], na.rm=T)
+  }
+  df
+}
+
 allvars$income <- allvars$income_lvstk + allvars$income_own + allvars$income_byprod +
   allvars$income_lvstk_byprod + allvars$income_perm_crop + allvars$income_crops + allvars$income_wage
 
-allvars_rsc <- allvars
-
-for (i in names(allvars_rsc)[!names(allvars_rsc) %in% c('Household.ID', 'survey_uuid', 'Country', 'Landscape..')]){
-  allvars_rsc[ , i] <- allvars_rsc[ , i]/max(allvars_rsc[ , i], na.rm=T)
-}
+allvars_rsc <- rescale(allvars)
+allvars_ind_rsc <- rescale(allvars_ind)
 
 #labor_pct
-labor_pct <- lmer(labor_pct ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + income + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (income|Country), data=allvars)
+labor_pct <- lmer(labor_pct ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (1|Country), data=allvars_rsc)
 summary(labor_pct)
+plotIt(labor_pct, 'Labor_Ratio')
 
 #any_ed_perc
-any_ed_perc <- lmer(any_ed_perc ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + income + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (income|Country), data=allvars)
+any_ed_perc <- lmer(any_ed_perc ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (1|Country), data=allvars_rsc)
 summary(any_ed_perc)
+plotIt(labor_pct, 'Education')
 
 #literate_perc
-literate_perc <- lmer(literate_perc ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + income + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (income|Country), data=allvars)
+literate_perc <- lmer(literate_perc ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (1|Country), data=allvars_rsc)
 summary(literate_perc)
+plotIt(literate_perc, 'Literacy')
 
 #employ_perc
-employ_pct <- lmer(employ_pct ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + income + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (income|Country), data=allvars)
+employ_pct <- lmer(employ_pct ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (1|Country), data=allvars_rsc)
 summary(employ_pct)
+plotIt(employ_pct, 'Employment')
 
-#mean_len_z
-mean_len_z <- lmer(mean_len_z ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + income + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (income|Country), data=allvars)
-summary(mean_len_z)
+#income
+income <- lmer(income ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (1|Country), data=allvars_rsc)
+summary(income)
+plotIt(income, 'Income')
 
-#mean_wei_z
-mean_wei_z <- lmer(mean_wei_z ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + income + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (income|Country), data=allvars)
-summary(mean_wei_z)
+#food
+foodsec <- glmer(food ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (1|Country), data=allvars_rsc, family = 'binomial')
+summary(foodsec)
+plotIt(foodsec, 'Food_Security')
 
-#mean_wfl_z
-mean_wfl_z <- lmer(mean_wfl_z ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + income + hh_size + pct_buy_seed + fallow + tractor + (1|Landscape..) + (income|Country), data=allvars)
-summary(mean_wfl_z)
+#zlen
+zlen <- lmer(zlen ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + hh_size + pct_buy_seed + fallow + tractor + (1|survey_uuid) + (1|Landscape..) + (1|Country), data=allvars_ind_rsc)
+summary(zlen)
+plotIt(zlen, 'zlen')
 
+#zwei
+zwei <- lmer(zwei ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + hh_size + pct_buy_seed + fallow + tractor + (1|survey_uuid) + (1|Landscape..) + (1|Country), data=allvars_ind_rsc)
+summary(zwei)
+plotIt(zwei, 'zwei')
 
-
-
-
-
-
-
-
-
+#zwfl
+zwfl <- lmer(zwfl ~ yield_quantile + average_field_size + total_acreage + intercrop_rate + pesticide + herbicide + fungicide + labor_hired + labor_hh + avg_pct_crops_any_sold + pct_fields_irrigated + hh_size + pct_buy_seed + fallow + tractor + (1|survey_uuid) + (1|Landscape..) + (1|Country), data=allvars_ind_rsc)
+summary(zwfl)
+plotIt(zwfl, 'zwfl')
 
 
 
