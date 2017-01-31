@@ -4,6 +4,7 @@ library(raster)
 library(dplyr)
 library(SPEI)
 library(foreach)
+library(lubridate)
 
 pg_conf <- read.csv('../rds_settings', stringsAsFactors=FALSE)
 vs_db <- src_postgres(dbname='vitalsigns', host=pg_conf$host,
@@ -16,17 +17,25 @@ landscapes <- tbl(vs_db, 'landscape') %>%
     dplyr::select(country, ls_id=landscape_no,
            lon=centerpoint_longitude, lat=centerpoint_latitude) %>%
     collect()
+write.csv(landscapes, file='landscapes.csv', row.names=FALSE)
 
-chirps <- stack('O:/Data/CHIRPS-2.0/global-monthly-combined/CHIRPS_global_monthly_198101-201412.tif')
+in_folder <- 'O:/Data/CHIRPS-2.0/global-monthly'
+tifs <- dir(in_folder, pattern='.tif$')
+vrt_file <- extension(rasterTmpFile(), 'vrt')
+gdalbuildvrt(file.path(in_folder, tifs), vrt_file, separate=TRUE, 
+             overwrite=TRUE)
 
-ls_sp <- SpatialPointsDataFrame(cbind(landscapes$lon, landscapes$lat),
-                                as.data.frame(landscapes),
-                                proj4string=CRS(proj4string(chirps)))
-
-ls_ppt <- extract(chirps, ls_sp, df=TRUE)
-
-ls_spi <- foreach(n=1:nrow(ls_sp), .combine=rbind) {
-    spi(as.numeric(ls_sp[n, :]), 12, na.rm=TRUE)$fitted
+ls_spi <- foreach(n=1:nrow(landscapes), .combine=rbind) %do% {
+    s <- gdallocationinfo(vrt_file, landscapes$lon[n], landscapes$lat[n],
+                          wgs84=TRUE, valonly=TRUE)
+    s <- as.numeric(s)
+    data.frame(country=landscapes$country[n],
+          ls_id=landscapes$ls_id[n],
+          date=seq(ymd('1981-01-01'), ymd('2016-06-01'), by='1 month'),
+          spi6=as.numeric(spi(s, 12, na.rm=TRUE)$fitted),
+          spi12=as.numeric(spi(s, 12, na.rm=TRUE)$fitted),
+          spi24=as.numeric(spi(s, 12, na.rm=TRUE)$fitted),
+          spi36=as.numeric(spi(s, 12, na.rm=TRUE)$fitted))
 }
 
 save(ls_spi, file='ls_spi.RData')
