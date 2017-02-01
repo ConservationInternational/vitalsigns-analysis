@@ -95,12 +95,16 @@ group_by(ext_final, country, ls_id) %>%
 inputs <- tbl(vs_db, "flagging__agric_field_details") %>%
     select(survey_uuid, country=Country, ls_id=`Landscape #`,
            hh_id=`Household ID`, field_id=`Field ID`, survey_uuid, ag3a_34, 
-           starts_with('fd33_18a_'), starts_with('fd35_24a_'), ag3a_09,
-           flag) %>%
+           starts_with('fd33_18a_'), starts_with('fd35_24a_'), ag3a_09, 
+           ag3a_06, flag) %>%
     collect()
 
 # Was field irrigated in last season?
 inputs$irrigation <- inputs$ag3a_09 == 1
+
+inputs$soil_quality <- ordered(inputs$ag3a_06,
+                               levels=c(3, 2, 1),
+                               labels=c('bad', 'average', 'good'))
 
 # What was the main type of pesticide/herbicide that you applied? 
 inputs$pesticide <- inputs$ag3a_34 == 1
@@ -137,7 +141,7 @@ inputs$fert_inorg_any <- with(inputs, fd35_24a_urea | fd35_24a_dap | fd35_24a_ts
 inputs$fert_inorg_any[is.na(inputs$fert_inorg_any)] <- FALSE
 inputs <- select(inputs, country, ls_id, hh_id, field_id, survey_uuid, 
                  fert_org_any, fert_inorg_any, irrigation, pesticide, 
-                 herbicide, fungicide)
+                 herbicide, fungicide, soil_quality)
 
 ###############################################################################
 ### Yields
@@ -153,9 +157,13 @@ yields <- tbl(vs_db, "flagging__agric_crops_by_field") %>%
     select(survey_uuid, country=Country, ls_id=`Landscape #`,
            hh_id=`Household ID`, field_id=`Field ID`, survey_uuid,
            crop_name=`Crop name`, ag4a_08, ag4a_15, ag4a_15_unit,
-           ag4a_19, ag4a_23) %>%
+           planting_date=ag4a_vs_5a, ag4a_19, ag4a_23) %>%
     collect()
 yields$yield <- yields$ag4a_15/yields$ag4a_08
+
+ggplot(yields) + geom_bar(aes(planting_date))
+yields <- filter(yields, planting_date > as.Date('2013/1/1'))
+ggplot(yields) + geom_bar(aes(planting_date))
 
 # ag41_19: did you purchase any seed (1 is yes)
 # ag4a_23: what type of seed did you purchase
@@ -170,7 +178,8 @@ yields <- group_by(yields, crop_name, ag4a_15_unit) %>%
     ungroup()
 
 yields <- select(yields, country, ls_id, hh_id, field_id, crop_name, 
-                 yield_percentile, improved_seed)
+                 yield, yield_percentile, yield_units=ag4a_15_unit,
+                 improved_seed, planting_date)
 
 ###############################################################################
 ### Todos
