@@ -446,6 +446,37 @@ inc5 <- inc5 %>% group_by(Household.ID) %>% summarize(income_lvstk = sum(income_
 allvars <- merge(allvars, inc5, all.x=T)
 allvars$income_lvstk[is.na(allvars$income_lvstk)] <- 0
 
+
+#  agric_crops_by_field
+#    ag4a_21 - What was the total value of seeds purchased?
+
+inc6 <- tbl(con, 'flagging__agric_crops_by_field') %>%
+  select(`Household ID`, flag, ag4a_21) %>%
+  data.frame# %>% flagFilter
+
+inc6 <- inc6 %>% group_by(Household.ID) %>% summarize(cost_seeds = sum(ag4a_21, na.rm=T))
+
+inc6[is.na(inc6)] <- 0
+
+allvars <- merge(allvars, inc6)
+
+#  agric_field_details
+#    ag3a_32 What was the total value of [FERTILIZER] purchased?
+#    ag3a_61 What was the total value of this pesticides/ herbicides purchased?
+#    ag3a_22 What was the total value of organic fertilizer purchased?
+
+inc7 <- tbl(con, 'flagging__agric_field_details') %>%
+  select(`Household ID`, flag, ag3a_32, ag3a_61, ag3a_22) %>%
+  data.frame# %>% flagFilter
+
+inc7 <- inc7 %>% group_by(Household.ID) %>% summarize(cost_org_fert = sum(ag3a_22, na.rm=T), 
+                                                      cost_syn_fert = sum(ag3a_32, na.rm=T),
+                                                      cost_pesticide = sum(ag3a_61, na.rm=T))
+
+inc7[is.na(inc7)] <- 0
+
+allvars <- merge(allvars, inc7)
+
 # Ratio of Laborers to Dependants
 hh_labor <- tbl(con, 'flagging__household_secE') %>%
   select(`Household ID`, `Individual ID`, flag, hh_e04) %>%
