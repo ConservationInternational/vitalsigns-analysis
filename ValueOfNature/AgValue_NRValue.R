@@ -1,6 +1,7 @@
 library(dplyr)
 library(reshape2)
 library(ggplot2)
+library(scales)
 detach('package:raster', unload=T)
 
 setwd('D:/Documents and Settings/mcooper/GitHub/vitalsigns-analysis/ValueOfNature/')
@@ -154,27 +155,28 @@ agvalue$Crop.Byproducts[is.na(agvalue$Crop.Byproducts)] <- 0
 ######################################
 #Graph!
 
-#landscape_df <- data.frame(Landscape..=c('L03', 'L10', 'L11', 'L18', 'L19', 'L20', 'L22'), 
-#                           Location=c('Sumbawanga', 'Ihemi - Mufindi', 'Ludewa', 'Ihemi - Kilolo',
-#                                      'Kilombero', 'Mbarali', 'Rufiji'))
+landscape_df <- data.frame(Landscape..=c('L03', 'L10', 'L11', 'L18', 'L19', 'L20', 'L22'),
+                          Location=c('Sumbawanga', 'Ihemi - Mufindi', 'Ludewa', 'Ihemi - Kilolo',
+                                     'Kilombero', 'Mbarali', 'Rufiji'))
 
 # landscape_df <- data.frame(Landscape..=c('L07', 'L06', 'L04', 'L03', 'L01', 'L02'), 
 #                            Location=c('Otuke', 'Masindi', 'Kisoro', 'Butambala',
 #                                       'Yumbe', 'Bududa'))
 
-landscape_df <- data.frame(Landscape..=c('L07', 'L06', 'L04', 'L03', 'L01', 'L02'), 
-                           Location=c('Bugusera', 'Muhanga', 'Gishwati', 'Akagera',
-                                      'Nyungwe', 'Volcanoes'))
+# landscape_df <- data.frame(Landscape..=c('L07', 'L06', 'L04', 'L03', 'L01', 'L02'), 
+#                            Location=c('Bugusera', 'Muhanga', 'Gishwati', 'Akagera',
+#                                       'Nyungwe', 'Volcanoes'))
 
-ag_plot <- agvalue %>% filter(Country=='UGA') %>% merge(landscape_df) %>% group_by(Location) %>%
+ag_plot <- agvalue %>% filter(Country=='TZA') %>% merge(landscape_df) %>% group_by(Location) %>%
   summarize(Annual.Crops=sum(Crops, na.rm=T), Livestock=sum(Livestock, na.rm=T),
             Crop.Byproducts=sum(Crop.Byproducts), Livestock.Byproducts=sum(Livestock.Byproducts),
             Permanent.Crops=sum(Permanent.Crops, na.rm=T)) %>% melt(id.vars='Location')
 
 ag_plot$value <- ag_plot$value/30
 
-ggplot(ag_plot) + geom_bar(aes(x=Location, y=value, fill=variable), stat='identity') + theme_bw()
+options(scipen=999)
 
+ggplot(ag_plot) + geom_bar(aes(x=Location, y=value, fill=variable), stat='identity') + theme_bw()
 
 ######################################
 #Get NR Value
@@ -218,13 +220,13 @@ hv2.1 <- merge(hv2.1, hv2.1 %>% group_by(Country) %>% summarize(bundle_price=med
 
 hv2.1$bundle_value <- hv2.1$bundle_price * hv2.1$bundles
 
-hv_plot <- hv2.1 %>% filter(Country=='UGA') %>% merge(landscape_df) %>% group_by(Location) %>%
+hv_plot <- hv2.1 %>% filter(Country=='TZA') %>% merge(landscape_df) %>% group_by(Location) %>%
   summarize(Bushmeat=sum(hv2_14_01, na.rm=T), Insects=sum(hv2_14_02, na.rm=T), Fish=sum(hv2_14_03, na.rm=T), Nuts.Seeds=sum(hv2_14_04, na.rm=T),
             Building.Materials=sum(hv2_14_05, na.rm=T), Medicinal.Plants=sum(hv2_14_06, na.rm=T), Ceremonial.Items=sum(hv2_14_07, na.rm=T),
             Honey=sum(hv2_14_08, na.rm=T), Other=sum(hv2_14_09, na.rm=T)) %>% 
   melt(id.vars='Location')
 
-hv_plot$value <- hv_plot$value/30
+hv_plot$value <- (hv_plot$value/30)*12
 
 ggplot(hv_plot) + geom_bar(aes(x=Location, y=value, fill=variable), stat='identity') + theme_bw()
 

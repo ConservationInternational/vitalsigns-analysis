@@ -85,7 +85,7 @@ library(gstat)
 library(raster)
 
 species_sum <- as.data.frame(species_sum)
-ss <- SpatialPointsDataFrame(coords=species_sum[species_sum$Country=='RWA' , c('longitude', 'latitude')], data=species_sum[species_sum$Country=='RWA', ])
+ss <- SpatialPointsDataFrame(coords=species_sum[species_sum$Country=='TZA' , c('longitude', 'latitude')], data=species_sum[species_sum$Country=='TZA', ])
 
 x.range <- range(ss$longitude)
 y.range <- range(ss$latitude)
@@ -104,18 +104,18 @@ write.csv(ss@data, 'RWA-Biodiversity.csv', row.names=F)
 
 IDW <- gstat::idw(biodiversity~1, locations=ss, newdata=grd, idp=2.5)
 
-#plot(IDW)
+plot(IDW)
 
-# TZ <- readRDS('UGA_adm1.rds')
-# TZ <- TZ[TZ$NAME_1!="Lake Victoria", ]
+#TZ <- readRDS('UGA_adm1.rds')
+#TZ <- TZ[TZ$NAME_1!="Lake Victoria", ]
 
-TZ <- readRDS('RWA_adm0.rds')
+TZ <- readRDS('TZA_adm0.rds')
 
 
 cp <- mask(raster(IDW), TZ)
 
 library(raster)
-plot(cp, main='Tree Species Diversity in Rwanda', labels=F, xaxt='n', yaxt='n',
+plot(cp, main='Tree Species Diversity in Tanzania', labels=F, xaxt='n', yaxt='n',
      legend.args=list(text='Tree Biodiversity (Shannon Diversity Index)', side=4, font=2, line=2.5, cex=0.8))
 plot(TZ, add=T)
 
