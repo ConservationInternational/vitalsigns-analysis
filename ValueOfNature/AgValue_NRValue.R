@@ -155,19 +155,19 @@ agvalue$Crop.Byproducts[is.na(agvalue$Crop.Byproducts)] <- 0
 ######################################
 #Graph!
 
-landscape_df <- data.frame(Landscape..=c('L03', 'L10', 'L11', 'L18', 'L19', 'L20', 'L22'),
-                          Location=c('Sumbawanga', 'Ihemi - Mufindi', 'Ludewa', 'Ihemi - Kilolo',
-                                     'Kilombero', 'Mbarali', 'Rufiji'))
+# landscape_df <- data.frame(Landscape..=c('L03', 'L10', 'L11', 'L18', 'L19', 'L20', 'L22'),
+#                            Location=c('Sumbawanga', 'Ihemi - Mufindi', 'Ludewa', 'Ihemi - Kilolo',
+#                                       'Kilombero', 'Mbarali', 'Rufiji'))
 
-# landscape_df <- data.frame(Landscape..=c('L07', 'L06', 'L04', 'L03', 'L01', 'L02'), 
-#                            Location=c('Otuke', 'Masindi', 'Kisoro', 'Butambala',
-#                                       'Yumbe', 'Bududa'))
+landscape_df <- data.frame(Landscape..=c('L07', 'L06', 'L04', 'L03', 'L01', 'L02'),
+                           Location=c('Otuke', 'Masindi', 'Kisoro', 'Butambala',
+                                      'Yumbe', 'Bududa'))
 
 # landscape_df <- data.frame(Landscape..=c('L07', 'L06', 'L04', 'L03', 'L01', 'L02'), 
 #                            Location=c('Bugusera', 'Muhanga', 'Gishwati', 'Akagera',
 #                                       'Nyungwe', 'Volcanoes'))
 
-ag_plot <- agvalue %>% filter(Country=='TZA') %>% merge(landscape_df) %>% group_by(Location) %>%
+ag_plot <- agvalue %>% filter(Country=='UGA') %>% merge(landscape_df) %>% group_by(Location) %>%
   summarize(Annual.Crops=sum(Crops, na.rm=T), Livestock=sum(Livestock, na.rm=T),
             Crop.Byproducts=sum(Crop.Byproducts), Livestock.Byproducts=sum(Livestock.Byproducts),
             Permanent.Crops=sum(Permanent.Crops, na.rm=T)) %>% melt(id.vars='Location')
@@ -176,7 +176,9 @@ ag_plot$value <- ag_plot$value/30
 
 options(scipen=999)
 
-ggplot(ag_plot) + geom_bar(aes(x=Location, y=value, fill=variable), stat='identity') + theme_bw()
+ggplot(ag_plot) + geom_bar(aes(x=Location, y=value*0.00028, fill=variable), stat='identity') +
+  theme_bw() + guides(fill=guide_legend(title=NULL)) + ylab('Annual Value per Household (USD)') +
+  ggtitle("Agricultural Production Across 6 Landscapes in Uganda")
 
 ######################################
 #Get NR Value
@@ -191,7 +193,7 @@ hv1 <- tbl(con, 'flagging__household_secHV1') %>%
 hv1 <- merge(hv1, data.frame(hh_hv104=c('1', '2', '3', '4'), multiplier=c(52, 12, 4, 1)))
 
 hv1$bundles <- hv1$hh_hv105*hv1$multiplier
-        
+
 hv1 <- hv1 %>% group_by(Country, Landscape.., Household.ID) %>% summarize(bundles=sum(bundles, na.rm=T))
 
 #Natural Resource Value
@@ -220,7 +222,7 @@ hv2.1 <- merge(hv2.1, hv2.1 %>% group_by(Country) %>% summarize(bundle_price=med
 
 hv2.1$bundle_value <- hv2.1$bundle_price * hv2.1$bundles
 
-hv_plot <- hv2.1 %>% filter(Country=='TZA') %>% merge(landscape_df) %>% group_by(Location) %>%
+hv_plot <- hv2.1 %>% filter(Country=='UGA') %>% merge(landscape_df) %>% group_by(Location) %>%
   summarize(Bushmeat=sum(hv2_14_01, na.rm=T), Insects=sum(hv2_14_02, na.rm=T), Fish=sum(hv2_14_03, na.rm=T), Nuts.Seeds=sum(hv2_14_04, na.rm=T),
             Building.Materials=sum(hv2_14_05, na.rm=T), Medicinal.Plants=sum(hv2_14_06, na.rm=T), Ceremonial.Items=sum(hv2_14_07, na.rm=T),
             Honey=sum(hv2_14_08, na.rm=T), Other=sum(hv2_14_09, na.rm=T)) %>% 
@@ -228,7 +230,9 @@ hv_plot <- hv2.1 %>% filter(Country=='TZA') %>% merge(landscape_df) %>% group_by
 
 hv_plot$value <- (hv_plot$value/30)*12
 
-ggplot(hv_plot) + geom_bar(aes(x=Location, y=value, fill=variable), stat='identity') + theme_bw()
+ggplot(hv_plot) + geom_bar(aes(x=Location, y=value*0.00028, fill=variable), stat='identity') + 
+  guides(fill=guide_legend(title=NULL)) + theme_bw() + 
+  ylab('Annual Value Per Household (USD)') + ggtitle('Natural Resource Gathering Across 6 Landscapes in Uganda')
 
 fw_plot <- hv2.1 %>% filter(Country=='UGA') %>% merge(landscape_df) %>% group_by(Location) %>%
   summarize(Fuelwood=sum(bundle_value, na.rm=T))
@@ -248,4 +252,3 @@ final <- rbind(nrs, ag_plot)
 
 ggplot(final) + geom_bar(aes(x=Location, y=value, fill=Source), stat='identity', position='dodge') + theme_bw()
 ggplot(final[!is.na(final$variable), ]) + geom_bar(aes(x=Location, y=value, fill=Source), stat='identity', position='dodge') + theme_bw()
-

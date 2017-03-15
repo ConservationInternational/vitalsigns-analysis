@@ -1,4 +1,5 @@
 library(dplyr)
+detach("package:raster", unload=TRUE)
 
 setwd('D:/Documents and Settings/mcooper/GitHub/vitalsigns-analysis/TreeBiodiversity')
 
@@ -45,7 +46,7 @@ bootstrap_diversity <- function(vector, freq, iter){
 }
 
 #The area of the plots are not the same, so we have to somehow adjust that.  Restrict to smallest plot size?
-eplot <- tbl(con, 'flagging__eplot') %>% select(survey_uuid, Country, latitude, longitude, `Subplot Radius`, flag) %>% data.frame %>%
+eplot <- tbl(con, 'flagging__eplot') %>% select(survey_uuid, Country, `Landscape #`,  `Eplot #`, latitude, longitude, `Subplot Radius`, flag) %>% data.frame %>%
   filter(!grepl('Subplot Radius', flag) & !is.na(Subplot.Radius))
 
 radii <- unique(eplot$Subplot.Radius)
@@ -56,13 +57,13 @@ subplot <- data.frame(Subplot.Radius=radii, area, ratio)
 
 eplot <- merge(eplot, subplot)
 
-species <- tbl(con, 'flagging__eplot_woody_plant') %>% select(survey_uuid, Country, Genus, Species) %>% data.frame
+species <- tbl(con, 'flagging__eplot_woody_plant') %>% select(survey_uuid, `Landscape #`, `Eplot #`, Country, Genus, Species) %>% data.frame
 
 species <- merge(eplot, species)
 
 species <- species %>% filter(Genus != 'Musa')
 
-species_sum <- species %>% group_by(survey_uuid, latitude, longitude, Country) %>% 
+species_sum <- species %>% group_by(survey_uuid, Landscape.., Eplot.., latitude, longitude, Country) %>% 
   summarize(biodiversity=bootstrap_diversity(vector=paste0(Genus, Species), freq=ratio, iter=500))
 
 # library(maps)
@@ -119,8 +120,10 @@ plot(cp, main='Tree Species Diversity in Tanzania', labels=F, xaxt='n', yaxt='n'
      legend.args=list(text='Tree Biodiversity (Shannon Diversity Index)', side=4, font=2, line=2.5, cex=0.8))
 plot(TZ, add=T)
 
-#points(38.7492089681939,	-8.14419444155308, pch=0, col='red', cex=1.5)
-#legend(30.6, -9.62, 'Rufiji Landscape', pch=0, col='red', cex=1.5)
+points(38.7492089681939,	-8.14419444155308, pch=0, col='red', cex=1.5)
+legend(30.6, -9.62, 'Rufiji (L22)', pch=0, col='red', cex=1.5, bty= 'n')
+
+write.csv(species_sum, 'Biodiversity.Eplot.csv', row.names=F)
 
 ############################
 #Bring in landcover type
@@ -141,12 +144,16 @@ species_lc <- merge(species_sum, eplot_id, by='eplot_code')
 eplotsoils <- tbl(con, 'flagging__eplotsoils_processed') %>% data.frame %>%
   select(Eplot.Code, Country, Nitrogen = Nitrogen.content.for.acid.treated.sample.to.remove.carbonates..,
          Phosphorous=Phosphorus.by.Mehlich.3.extraction..mg.kg..1.,
-         Potassium = Potassium.concentration.by.Mehlich.3.extraction..mg.kg..1.)
+         Potassium = Potassium.concentration.by.Mehlich.3.extraction..mg.kg..1.,
+         Carbon = Carbon.content.for.acid.treated.sample.to.remove.carbonates....,
+         Carbon2 = Total.Carbon.content....by.weight.,
+         Nitrogen2 = Total.Nitrogen.content....by.weight.,
+         Phosphorus2 = P.sorption.index..Bache.and.Williams.1971.)
 
 
 eplot <- merge(species_lc, eplotsoils, by.x='eplot_code', by.y='Eplot.Code')
 
-lm(Potassium~biodiversity, data=eplot[eplot$landcover %in% c('Woodland', 'Forest'),]) %>% summary
+lm(biodiversity~Potassium + Phosphorous + Carbon + Nitrogen, data=eplot) %>% summary
 
 
 library(maps)
