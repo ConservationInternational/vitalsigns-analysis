@@ -91,8 +91,8 @@ ss <- SpatialPointsDataFrame(coords=species_sum[species_sum$Country=='TZA' , c('
 x.range <- range(ss$longitude)
 y.range <- range(ss$latitude)
 
-x<-seq(x.range[1], x.range[2], length.out=200)
-y<-seq(y.range[1], y.range[2], length.out=200)
+x<-seq(x.range[1]-3, x.range[2]+3, length.out=250)
+y<-seq(y.range[1]-3, y.range[2]+3, length.out=250)
 grd<-expand.grid(x,y)
 
 coordinates(grd) <- ~ Var1+Var2
@@ -112,16 +112,17 @@ plot(IDW)
 
 TZ <- readRDS('TZA_adm0.rds')
 
+fc <- focal(raster(IDW), fun=mean, w=matrix(rep(1,49), nrow=7), pad=T)
+cp <- mask(fc, TZ)
+cp <- crop(cp, extent(ss))
 
-cp <- mask(raster(IDW), TZ)
 
-library(raster)
-plot(cp, main='Tree Species Diversity in Tanzania', labels=F, xaxt='n', yaxt='n',
+plot(cp, labels=F, xaxt='n', yaxt='n',
      legend.args=list(text='Tree Biodiversity (Shannon Diversity Index)', side=4, font=2, line=2.5, cex=0.8))
 plot(TZ, add=T)
 
-points(38.7492089681939,	-8.14419444155308, pch=0, col='red', cex=1.5)
-legend(30.6, -9.62, 'Rufiji (L22)', pch=0, col='red', cex=1.5, bty= 'n')
+library(rgdal)
+writeRaster(cp, filename = 'TZA_Biodiversity.tif', format='GTiff')
 
 write.csv(species_sum, 'Biodiversity.Eplot.csv', row.names=F)
 
