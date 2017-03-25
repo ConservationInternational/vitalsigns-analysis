@@ -2,7 +2,7 @@ library(dplyr)
 library(ggplot2)
 library(reshape2)
 
-setwd('D:/Documents and Settings/mcooper/GitHub/vitalsigns-analysis/TreeBiodiversity')
+setwd('D:/Documents and Settings/mcooper/GitHub/vitalsigns-analysis/Food Security')
 
 source('../production_connection.R')
 #source('../local_connection.R')
@@ -52,6 +52,52 @@ dfsum <- df %>% group_by(Country, Landscape..) %>%
             nov=mean2(nov), dec=mean2(dec)) %>%
   melt(id.vars=c('Country', 'Landscape..'))
   
+df_ls <- tbl(con, 'landscape') %>%
+  select(Country=country, Landscape..=landscape_no,
+         x=centerpoint_longitude, y=centerpoint_latitude) %>%
+  merge(dfsum, all.y=T)
+
+
+##Get climate data
+library(raster)
+
+r <- stack(paste0('precip/', list.files('precip/', pattern='.bil')))
+names(r) <- c('jan', 'oct', 'nov', 'dec', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep')
+
+ls <- df_ls[ , c('Country', 'Landscape..', 'x', 'y')] %>% unique
+ls_sp <- SpatialPointsDataFrame(coords = ls[ , c('x', 'y')], data=ls)
+
+ls_sp_m <- extract(r, ls_sp, sp=T)@data
+
+#get driest 4 months
+
+getBottomThird <- function(v){
+  quantile(v, probs=c(1/3, 1))[1]
+}
+
+ls_sp_m$third <- apply(X = ls_sp_m[ , c('jan', 'oct', 'nov', 'dec', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep')],
+                        FUN = getBottomThird, MARGIN = 1)
+
+ls_sp_m[ 
+
+
+
+
+
+ggplot(df_ls) + 
+  geom_bar(aes(x=variable, y=value), stat='identity') + 
+  facet_grid(round(y, 4) ~ .)
+ggsave('Insecurity_Months.png', width=2.34, height=16)
+
+
+
+
+
+
+
+
+
+
 
 
 
