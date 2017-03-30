@@ -72,17 +72,13 @@ ls_sp <- SpatialPointsDataFrame(coords = ls[ , c('x', 'y')], data=ls)
 
 ls_sp_m <- extract(r, ls_sp, sp=T)@data
 
-#get driest 4 months
-getBottomThird <- function(v){
-  quantile(v, probs=c(1/3, 1))[1]
-}
-
 months <- c('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
 
-ls_sp_m$third <- apply(X = ls_sp_m[ , months],
-                        FUN = getBottomThird, MARGIN = 1)
+#Just normalize months
+ls_sp_m$max <- apply(X = ls_sp_m[ , months],
+                        FUN = max, MARGIN = 1)
 
-ls_sp_m[ , months] <- ls_sp_m[ , months] < ls_sp_m$third
+ls_sp_m[ , months] <- ls_sp_m[ , months]/ls_sp_m$max
 
 ls_m <- melt(ls_sp_m[ , c('Country', 'Landscape..', months)], id.vars=c('Country', 'Landscape..'))
 
@@ -90,11 +86,19 @@ df_m <- merge(ls_m, df_ls, by=c('Country', 'Landscape..', 'variable'))
 
 df_m$variable <- as.numeric(df_m$variable)
 
-ggplot(df_m, aes(variable, value.y, value.x)) + 
-  geom_rect(aes(fill=value.x, xmin=variable-0.5, xmax=variable+0.5, ymin=min(value.y), ymax=max(value.y))) + 
-  geom_bar(stat='identity') + 
+ggplot(df_m) + 
+  geom_line(aes(variable, value.x), color='blue') + 
+  geom_bar(aes(variable, value.y), stat='identity') + 
   facet_grid(paste0(Country, Landscape.., Round) ~ .)
-ggsave('Insecurity_Months.png', width=5, height=18)
+ggsave('Insecurity_Months_PrecipLine.png', width=5, height=18)
+
+
+ggplot(df_m %>% filter(Country == 'UGA')) + 
+  geom_line(aes(variable, value.x), color='blue') + 
+  geom_bar(aes(variable, value.y), stat='identity') + 
+  facet_grid(paste0(Landscape..) ~ .)
+
+ggsave('Insecuritys_Precip_Uganda.png')
 
 #Do it again but with the raw precip data.  plot lines and bars
 
