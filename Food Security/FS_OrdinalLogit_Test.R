@@ -21,13 +21,13 @@ fs <- tbl(vs_db, 'flagging__household_secI') %>% data.frame
 
 fs <- fs[ , c('hh_i08', paste0('hh_i02_', seq(1,8)))]
 
-# 1  Rely on less preferred foods? 
-# 2  Limit the variety of foods eaten? 
-# 3  Limit portion size at meal-times? 
-# 4  Reduce number of meals eaten in a day? 
-# 5  Restrict consumption by adults for small children to eat? 
-# 6  Borrow food, or rely on help from a friend or relative? 
-# 7  Have no food of any kind in your house-hold? 
+# 1  Rely on less preferred foods?
+# 2  Limit the variety of foods eaten?
+# 3  Limit portion size at meal-times?
+# 4  Reduce number of meals eaten in a day?
+# 5  Restrict consumption by adults for small children to eat?
+# 6  Borrow food, or rely on help from a friend or relative?
+# 7  Have no food of any kind in your house-hold?
 # 8  Go a whole day and night without eating anything?
 
 poa <- function(x){

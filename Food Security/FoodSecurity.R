@@ -1,112 +1,108 @@
-library(dplyr)
-library(ggplot2)
-library(reshape2)
-detach("package:raster", unload=TRUE)
+setwd('D://Documents and Settings/mcooper/GitHub/vitalsigns-analysis/Food Security/')
 
-setwd('D:/Documents and Settings/mcooper/GitHub/vitalsigns-analysis/Food Security')
+library(lubridate)
+library(dplyr)
 
 source('../production_connection.R')
-#source('../local_connection.R')
-
 con <- src_postgres(dbname = dbname, host = host, port = port, user = user, password = password)
 
-df <- tbl(con, 'flagging__household_secI') %>% data.frame
+library(aws.s3)
+aws.signature::use_credentials()
 
-df1 <- df %>% select(Country, Landscape.., Round,
-            jan=hh_i09_2012_1,
-            feb=hh_i09_2012_2, 
-            mar=hh_i09_2012_3,
-            apr=hh_i09_2012_4,
-            may=hh_i09_2012_5,
-            jun=hh_i09_2012_6, 
-            jul=hh_i09_2012_7,
-            aug=hh_i09_2012_8, 
-            sep=hh_i09_2012_9, 
-            oct=hh_i09_2012_10,
-            nov=hh_i09_2012_11, 
-            dec=hh_i09_2012_12)
-
-df2 <-  df %>% select(Country, Landscape.., Round,
-            jan=hh_i09_2013_1,
-            feb=hh_i09_2013_2,
-            mar=hh_i09_2013_3,
-            apr=hh_i09_2013_4,
-            may=hh_i09_2013_5,
-            jun=hh_i09_2013_6,
-            jul=hh_i09_2013_7,
-            aug=hh_i09_2013_8,
-            sep=hh_i09_2013_9,
-            oct=hh_i09_2013_10,
-            nov=hh_i09_2013_11,
-            dec=hh_i09_2013_12)
-
-df <- bind_rows(df1, df2)
-
-mean2 <- function(v){
-  sum(v, na.rm=T)/length(v)
+read <- function(x){
+  read.csv(text=rawToChar(get_object(x, bucket='vs-cdb-indicators')))
 }
 
-dfsum <- df %>% group_by(Country, Landscape.., Round) %>%
-  summarize(jan=mean2(jan), feb=mean2(feb),
-            mar=mean2(mar), apr=mean2(apr),
-            may=mean2(may), jun=mean2(jun),
-            jul=mean2(jul), aug=mean2(aug),
-            sep=mean2(sep), oct=mean2(oct),
-            nov=mean2(nov), dec=mean2(dec)) %>%
-  melt(id.vars=c('Country', 'Landscape..', 'Round'))
-  
-df_ls <- tbl(con, 'landscape') %>%
-  select(Country=country, Landscape..=landscape_no,
-         x=centerpoint_longitude, y=centerpoint_latitude) %>%
-  merge(dfsum, all.y=T)
+
+##Outcomes
+#Ordinal FS CSI in past two weeks
+#Also: Wasting
+
+fs <- tbl(con, 'flagging__household_secI') %>% data.frame
+fs <- fs[ , c('Country', 'Landscape..', 'Household.ID', 'Round', 'hh_i08', paste0('hh_i02_', seq(1,8)))]
+
+fs$ord[fs$hh_i08=='2'] <- 1               #364
+fs$ord[fs$hh_i08=='1'] <- 2               #174
+fs$ord[which(fs$hh_i02_1 > 0)] <- 3       #13
+fs$ord[which(fs$hh_i02_2 > 0)] <- 3       #17
+fs$ord[which(fs$hh_i02_3 > 0)] <- 3       #14
+fs$ord[which(fs$hh_i02_4 > 0)] <- 3       #127
+fs$ord[which(fs$hh_i02_5 > 0)] <- 3       #4
+fs$ord[which(fs$hh_i02_6 > 0)] <- 4       #20
+fs$ord[which(fs$hh_i02_7 > 0)] <- 4       #49
+fs$ord[which(fs$hh_i02_8 > 0)] <- 4       #22
+
+fs$ord <- as.factor(fs$ord)
+
+fs <- fs %>% select(Country, Landscape.., Household.ID, Round, ord)
 
 
-##Get climate data
-library(raster)
+##Predictors
+# ##Forest Cover
+lc <- read.csv('hh_forest.csv')
 
-r <- stack(paste0('precip/', list.files('precip/', pattern='.bil')))
-names(r) <- c('jan', 'oct', 'nov', 'dec', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep')
-
-ls <- df_ls[ , c('Country', 'Landscape..', 'x', 'y')] %>% unique
-ls_sp <- SpatialPointsDataFrame(coords = ls[ , c('x', 'y')], data=ls)
-
-ls_sp_m <- extract(r, ls_sp, sp=T)@data
-
-months <- c('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec')
-
-#Just normalize months
-ls_sp_m$max <- apply(X = ls_sp_m[ , months],
-                        FUN = max, MARGIN = 1)
-
-ls_sp_m[ , months] <- ls_sp_m[ , months]/ls_sp_m$max
-
-ls_m <- melt(ls_sp_m[ , c('Country', 'Landscape..', months)], id.vars=c('Country', 'Landscape..'))
-
-df_m <- merge(ls_m, df_ls, by=c('Country', 'Landscape..', 'variable'))
-
-df_m$variable <- as.numeric(df_m$variable)
-
-ggplot(df_m) + 
-  geom_line(aes(variable, value.x), color='blue') + 
-  geom_bar(aes(variable, value.y), stat='identity') + 
-  facet_grid(paste0(Country, Landscape.., Round) ~ .)
-ggsave('Insecurity_Months_PrecipLine.png', width=5, height=18)
+hh <- read.csv('../../vs-indicators-calc/Combine/hh_level.csv') %>%
+  select(Household.ID=Household_ID, Round, diversity, HH_Head_Gender, AgIncome, NonAgIncome, yield_quantile, CropCommercializationIndex, size, literate)
+         
+# Its about food security and forests is a predictor, one of many
+# outcome = reporting insecuirty past year (Ordinal logit outcome) - look at rare events logistic regression
+# predicot  = forest cover (break into types)
+# precip = for year specified - SPI
+# income/
+#   agvalue/
+#   yields/
+#   agincome
+# CCI
+# labor/
+#   nonfarm/
+#   if they collected any of each
+# diet diversity
+# hhsize,
+# drop RWA round 2
 
 
-ggplot(df_m %>% filter(Country == 'UGA')) + 
-  geom_line(aes(variable, value.x), color='blue') + 
-  geom_bar(aes(variable, value.y), stat='identity') + 
-  facet_grid(paste0(Landscape..) ~ .)
+# NR Use
+#If they collect each item
+#Too hard to quantify for now
+nr <- tbl(con, 'flagging__household_secHV2') %>%
+  dplyr::select(WildMeat=hv2_10_01, WildInsects=hv2_10_02, Fish=hv2_10_03, NutsSeeds=hv2_10_04, 
+         BuildingMaterials=hv2_10_05, MedicinalPlants=hv2_10_06, CeremonialItems=hv2_10_07,
+         Honey=hv2_10_08, Other=hv2_10_09, Round, `Household ID`) %>%
+  data.frame()
 
-ggsave('Insecuritys_Precip_Uganda.png')
+sel <- c("WildMeat", "WildInsects", "Fish", "NutsSeeds", "BuildingMaterials", 
+         "MedicinalPlants", "CeremonialItems", "Honey", "Other")
 
-#Do it again but with the raw precip data.  plot lines and bars
+nr[ , sel][is.na(nr[ , sel])] <- 2
+nr[ , sel] <- nr[ , sel] == '1'
+
+mkt <- read.csv('Market_hh.csv')
+
+# SPI
+load('hh_spi.RData')
+hh_spi$date <- ymd(hh_spi$date)
 
 
+# Months
+date <- tbl(con, 'agric') %>% select(Household.ID=hh_refno, Round=round, date=date_of_interview) %>% data.frame
+date$date <- ymd(date$date) %>% round_date(unit='month')
+date <- date %>% filter(!is.na(date$date))
 
+#Combining
+spi_date <- merge(date, hh_spi, all.x=T, all.y=F)
 
+df <- Reduce(merge, list(fs, lc, hh, nr, spi_date, mkt))
 
+df <- df %>% filter(Round == 1) %>% na.omit
 
+library(ordinal)
+
+mod <- clmm(ord ~ layer + #diversity + 
+              HH_Head_Gender + AgIncome + NonAgIncome + size + literate + spi12 + 
+              yield_quantile + CropCommercializationIndex + WildMeat + WildInsects + Fish + BuildingMaterials + MedicinalPlants + 
+              CeremonialItems + Honey + Other + market +
+              (1|Landscape..) + (1|Country), data=df, link = "logit", Hess=T)
+summary(mod)
 
 
 
