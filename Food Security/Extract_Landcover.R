@@ -13,7 +13,7 @@ hh <- tbl(con, 'sp_hh') %>%
 
 library(raster)
 
-r <- raster('ESACCI-LC-L4-LCCS-Map-300m-P5Y-2010-v1.6.1.tif')
+r <- raster('D:/Documents and Settings/mcooper/Desktop/Landscapes/ESACCI-LC-L4-LCCS-Map-300m-P5Y-2010-v1.6.1.tif')
 r <- crop(r, extent(-3.6, 40, -11, 37.5))
 rcl <- reclassify(r, rcl = matrix(c(10, 20, 30, 190, 200, 11,	12,	40,	50,	60,	61,	62,	70,	71,	72,	80,	81,	82,	90,	100,	110,	120,	121,	122,	130,	140,	150,	152,	153,	160,	170,	180,	201,	202,	210,	220,
                                     0,   0,  0,   0,   0,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,  1,   1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1,    1),

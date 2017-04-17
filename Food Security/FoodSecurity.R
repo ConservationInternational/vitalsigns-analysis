@@ -34,7 +34,7 @@ fs$ord[which(fs$hh_i02_8 > 0)] <- 4       #22
 
 fs$ord <- as.factor(fs$ord)
 
-fs <- fs %>% select(Country, Landscape.., Household.ID, Round, ord)
+fs <- fs %>% select(Country, Landscape.., Household.ID, Round, ord, fs_year=hh_i08)
 
 
 ##Predictors
@@ -97,16 +97,42 @@ df <- df %>% filter(Round == 1) %>% na.omit
 
 library(ordinal)
 
+rescale <- c('AgIncome', 'NonAgIncome', 'size', 'literate', 'spi12', 'yield_quantile', 'market')
+
+df[ , rescale] <- df[ , rescale]/apply(df[ , rescale], 2, max)
+
 mod <- clmm(ord ~ layer + #diversity + 
-              HH_Head_Gender + AgIncome + NonAgIncome + size + literate + spi12 + 
+              HH_Head_Gender + AgIncome + NonAgIncome + size + literate + spi12 + spi6 + spi24 + spi36 +
               yield_quantile + CropCommercializationIndex + WildMeat + WildInsects + Fish + BuildingMaterials + MedicinalPlants + 
               CeremonialItems + Honey + Other + market +
               (1|Landscape..) + (1|Country), data=df, link = "logit", Hess=T)
 summary(mod)
 
+df$any <- df$ord != '1'
+
+library(lme4)
+library(lmerTest)
+
+mod2 <- glmer(any ~ layer + #diversity + 
+               HH_Head_Gender + AgIncome + NonAgIncome + size + literate + spi12 + spi6 + spi24 + spi36 +
+               yield_quantile + CropCommercializationIndex + WildMeat + WildInsects + Fish + BuildingMaterials + MedicinalPlants + 
+               CeremonialItems + Honey + Other + market +
+               (1|Landscape..) + (1|Country), data=df, link = "logit", family='binomial')
+summary(mod2)
+
+
+df$fs_year <- df$fs_year == "2"
+mod3 <- glmer(fs_year ~ layer + #diversity + 
+                 HH_Head_Gender + AgIncome + NonAgIncome + size + literate + spi12 + spi6 + spi24 + spi36 +
+                 yield_quantile + CropCommercializationIndex + WildMeat + WildInsects + Fish + BuildingMaterials + MedicinalPlants + 
+                 CeremonialItems + Honey + Other + market +
+                 (1|Landscape..) + (1|Country), data=df, link = "logit", family='binomial')
+summary(mod3)
 
 
 
-
-
+#notes from Alex - check SPI at date of harvest
+#value of agriculture
+#population density
+#mask out protected areas
 
