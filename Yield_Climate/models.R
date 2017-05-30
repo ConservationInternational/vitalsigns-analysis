@@ -11,6 +11,9 @@ load('ls_spi.RData')
 ###############################################################################
 ### Join the SPI data based on planting date plus three months (to approximate 
 ### harvest date), rounded to nearest month.
+ls_spi$landscape_no <- ls_spi$ls_id
+ls_spi$ls_id <- NULL
+
 d$harvest_date <- round_date(d$planting_date + months(3), 'month')
 
 names(ls_spi)[names(ls_spi)=='date'] <- 'harvest_date'
@@ -28,6 +31,9 @@ d <- d[d$yield < 3000, ]
 
 # Convert soil quality to numeric for easier interpretation
 d$soil_quality <- as.numeric(d$soil_quality)
+
+d$landscape_no <- factor(d$landscape_no)
+d$country <- factor(d$country)
 
 ###############################################################################
 ### Do one regression per crop for the top three crops cultivated across VS 
@@ -75,7 +81,7 @@ ggsave('yield_by_country.png', width=12, height=8)
 d$yield_decile <- d$yield_percentile * 10
 
 maize <- lmer(yield_decile ~ spi12 + fert_org_any + fert_inorg_any + irrigation + 
-              improved_seed + ext_ag_prod + soil_quality + (1 | country/ls_id),
+              improved_seed + ext_ag_prod + soil_quality + (1 | country/landscape_no),
               data=filter(d, crop_name == 'Maize'))
 summary(maize)
 
@@ -95,7 +101,7 @@ ggsave('maize_model_1.png', width=12, height=8)
 ### Beans models
 
 beans <- lmer(yield_decile ~ spi12 + fert_org_any + fert_inorg_any + irrigation + 
-              improved_seed + ext_ag_prod + soil_quality + (1 | country/ls_id),
+              improved_seed + ext_ag_prod + soil_quality + (1 | country/landscape_no),
               data=filter(d, crop_name == 'Beans'))
 summary(beans)
 
