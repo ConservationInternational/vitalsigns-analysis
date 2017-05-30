@@ -2,80 +2,61 @@ library(ggplot2)
 library(RPostgreSQL)
 library(dplyr)
 
-pg_conf <- read.csv('../rds_settings', stringsAsFactors=FALSE)
-vs_db <- src_postgres(dbname='vitalsigns', host=pg_conf$host,
-                      user=pg_conf$user, password=pg_conf$pass,
-                      port=pg_conf$port)
+source('production_connection.R')
+vs_db <- src_postgres(dbname=dbname, host=host,
+                      user=user, password=password,
+                      port=port)
 
-###############################################################################
-### Yields from farm fields data
 
-# TODO: compare these to farmers estimated yields
+# Need to join back to agric using the parent_id
+agric <- tbl(vs_db, 'c__household') %>%
+  select(id, country, hh_refno, landscape_no) %>%
+  collect()
 
-# Calculate yields from farm field soils data:
-# field_ids <- tbl(vs_db, 'flagging__farmfieldsoils_yields_maize_field') %>%
-#     select(uuid, hh_id=`Household ID`, ls_id=`Landscape #`, field_id=`Field ID`,
-#            maize_cult=m1_a_2) %>%
-#     collect()
-#
-# field_char <- tbl(vs_db, 'flagging__farmfieldsoils_yields_maize_field_characteristic') %>%
-#     select(parent_uuid, hh_id=`Household ID`, ls_id=`Landscape #`, field_id=`Field ID`,
-#            plantdate=b_106, seed=b_103_a, fert_inorg_any=b_107, 
-#            fert_org_any=b_117, yield_kg=b_128) %>%
-#     collect()
-
-###############################################################################
-### Extension services
-
-# Need to join back to agric using the parent_uuid
-agric <- tbl(vs_db, 'flagging__agric') %>%
-    select(uuid, country=Country, hh_id=`Household ID`, ls_id=`Landscape #`) %>%
-    collect()
-
-ext <- tbl(vs_db, 'flagging__agric_extension') %>%
-    select(parent_uuid, source_id,
-           ext_ag_prod=ag12a_02_1,
-           ext_ag_proc=ag12a_02_2,
-           ext_marketing=ag12a_02_3,
-           ext_fish_prod=ag12a_02_4,
-           ext_livestock_prod=ag12a_02_5,
-           ext_livestock_disease=ag12a_02_6) %>%
-    collect() %>%
-    full_join(agric , by=c('parent_uuid'='uuid'))
+ext <- tbl(vs_db, 'c__household_extension') %>%
+  select(parent_id, source_name,
+         ext_ag_prod=ag12a_02_1,
+         ext_ag_proc=ag12a_02_2,
+         ext_marketing=ag12a_02_3,
+         ext_fish_prod=ag12a_02_4,
+         ext_livestock_prod=ag12a_02_5,
+         ext_livestock_disease=ag12a_02_6) %>%
+  collect() %>%
+  full_join(agric , by=c('parent_id'='id'))
 
 # No processing extension except in Ghana
-group_by(ext, country, ls_id) %>%
-    summarise(ext_ag_proc_frac=sum(ext_ag_proc==1, na.rm=TRUE)/n()) %>%
-    ggplot() +
-    geom_bar(aes(ls_id, ext_ag_proc_frac, fill=country), stat='identity') +
-    facet_grid(country~.)
+group_by(ext, country, landscape_no) %>%
+  summarise(ext_ag_proc_frac=sum(ext_ag_proc==1, na.rm=TRUE)/n()) %>%
+  ggplot() +
+  geom_bar(aes(landscape_no, ext_ag_proc_frac, fill=country), stat='identity') +
+  facet_grid(country~.)
 
 # Good distribution of production extension
-group_by(ext, country, ls_id) %>%
-    summarise(ext_ag_prod_frac=sum(ext_ag_prod==1, na.rm=TRUE)/n()) %>%
-    ggplot() +
-    geom_bar(aes(ls_id, ext_ag_prod_frac, fill=country), stat='identity') +
-    facet_grid(country~.)
+group_by(ext, country, landscape_no) %>%
+  summarise(ext_ag_prod_frac=sum(ext_ag_prod==1, na.rm=TRUE)/n()) %>%
+  ggplot() +
+  geom_bar(aes(landscape_no, ext_ag_prod_frac, fill=country), stat='identity') +
+  facet_grid(country~.)
 
 # No marketing extension except Ghana, some areas of TZA
-group_by(ext, country, ls_id) %>%
-    summarise(ext_marketing_frac=sum(ext_marketing==1, na.rm=TRUE)/n()) %>%
-    ggplot() +
-    geom_bar(aes(ls_id, ext_marketing_frac, fill=country), stat='identity') +
-    facet_grid(country~.)
+group_by(ext, country, landscape_no) %>%
+  summarise(ext_marketing_frac=sum(ext_marketing==1, na.rm=TRUE)/n()) %>%
+  ggplot() +
+  geom_bar(aes(landscape_no, ext_marketing_frac, fill=country), stat='identity') +
+  facet_grid(country~.)
 
 # Collapse ext dataframe into a df with just an indicator of access to ag 
 # production extension:
 #
 # TODO: Note that some records are duplicated in agric, so until this is 
 # cleaned, the below could be throwing out the wrong data
-ext_final <- group_by(ext, country, ls_id, hh_id) %>%
-    summarise(ext_ag_prod=sum(ext_ag_prod==1, na.rm=TRUE) > 0)
-group_by(ext_final, country, ls_id) %>%
-    summarise(ext_ag_prod_frac=sum(ext_ag_prod==1)/n()) %>%
-    ggplot() +
-    geom_bar(aes(ls_id, ext_ag_prod_frac, fill=country), stat='identity') +
-    facet_grid(country~.)
+ext_final <- group_by(ext, country, landscape_no, hh_refno) %>%
+  summarise(ext_ag_prod=sum(ext_ag_prod==1, na.rm=TRUE) > 0)
+group_by(ext_final, country, landscape_no) %>%
+  summarise(ext_ag_prod_frac=sum(ext_ag_prod==1)/n()) %>%
+  ggplot() +
+  geom_bar(aes(landscape_no, ext_ag_prod_frac, fill=country), stat='identity') +
+  facet_grid(country~.)
 
 ###############################################################################
 ### Inputs
@@ -92,12 +73,12 @@ group_by(ext_final, country, ls_id) %>%
 #   fd35_24a_npk
 #   fd35_24a_mrp
 
-inputs <- tbl(vs_db, "flagging__agric_field_details") %>%
-    select(survey_uuid, country=Country, ls_id=`Landscape #`,
-           hh_id=`Household ID`, field_id=`Field ID`, survey_uuid, ag3a_34, 
-           starts_with('fd33_18a_'), starts_with('fd35_24a_'), ag3a_09, 
-           ag3a_06, flag) %>%
-    collect()
+inputs <- tbl(vs_db, "c__household_field_season") %>%
+  select(id, parent_id, country, landscape_no,
+         hh_refno, field_no, ag3a_59, 
+         starts_with('fd33_18a_'), starts_with('fd35_24a_'), ag3a_09, 
+         ag3a_06, flag) %>%
+  collect()
 
 # Was field irrigated in last season?
 inputs$irrigation <- inputs$ag3a_09 == 1
@@ -124,8 +105,8 @@ inputs$fd33_18a_6 <- as.numeric(inputs$fd33_18a_6)
 inputs$fd33_18a_7 <- as.numeric(inputs$fd33_18a_7)
 inputs$fd33_18a_8 <- as.numeric(inputs$fd33_18a_8)
 inputs$fert_org_any <- with(inputs, fd33_18a_1 | fd33_18a_2 | fd33_18a_3 | 
-                            fd33_18a_4 | fd33_18a_5 | fd33_18a_6 | fd33_18a_7 | 
-                            fd33_18a_8)
+                              fd33_18a_4 | fd33_18a_5 | fd33_18a_6 | fd33_18a_7 | 
+                              fd33_18a_8)
 inputs$fert_org_any[is.na(inputs$fert_org_any)] <- FALSE
 
 inputs$fd35_24a_urea <- as.numeric(inputs$fd35_24a_urea)
@@ -136,10 +117,10 @@ inputs$fd35_24a_sa <- as.numeric(inputs$fd35_24a_sa)
 inputs$fd35_24a_npk <- as.numeric(inputs$fd35_24a_npk)
 inputs$fd35_24a_mrp <- as.numeric(inputs$fd35_24a_mrp)
 inputs$fert_inorg_any <- with(inputs, fd35_24a_urea | fd35_24a_dap | fd35_24a_tsp | 
-                            fd35_24a_can | fd35_24a_sa | fd35_24a_npk | fd35_24a_mrp)
+                                fd35_24a_can | fd35_24a_sa | fd35_24a_npk | fd35_24a_mrp)
 # Set NAs to FALSEs
 inputs$fert_inorg_any[is.na(inputs$fert_inorg_any)] <- FALSE
-inputs <- select(inputs, country, ls_id, hh_id, field_id, survey_uuid, 
+inputs <- select(inputs, country, landscape_no, hh_id, field_id, survey_id, 
                  fert_org_any, fert_inorg_any, irrigation, pesticide, 
                  herbicide, fungicide, soil_quality)
 
@@ -152,13 +133,13 @@ inputs <- select(inputs, country, ls_id, hh_id, field_id, survey_uuid,
 #   ag4a_15_unit - Unit  {1: 'Kg', 2: 'Liter', 3: 'Milliliter'}
 
 # TODO: Need to work out units issue - a lot of units are missing
-yields <- tbl(vs_db, "flagging__agric_crops_by_field") %>%
-    filter(!is.na(ag4a_15_unit) & !is.na(ag4a_08) & !is.na(ag4a_15) & ag4a_08 > 0) %>%
-    select(survey_uuid, country=Country, ls_id=`Landscape #`,
-           hh_id=`Household ID`, field_id=`Field ID`, survey_uuid,
-           crop_name=`Crop name`, ag4a_08, ag4a_15, ag4a_15_unit,
-           planting_date=ag4a_vs_5a, ag4a_19, ag4a_23) %>%
-    collect()
+yields <- tbl(vs_db, "c__agric_field_season_crop") %>%
+  filter(!is.na(ag4a_15_unit) & !is.na(ag4a_08) & !is.na(ag4a_15) & ag4a_08 > 0) %>%
+  select(survey_id, country=Country, landscape_no=`Landscape #`,
+         hh_id=`Household ID`, field_id=`Field ID`, survey_id,
+         crop_name=`Crop name`, ag4a_08, ag4a_15, ag4a_15_unit,
+         planting_date=ag4a_vs_5a, ag4a_19, ag4a_23) %>%
+  collect()
 yields$yield <- yields$ag4a_15/yields$ag4a_08
 
 ggplot(yields) + geom_bar(aes(planting_date))
@@ -170,14 +151,14 @@ ggplot(yields) + geom_bar(aes(planting_date))
 yields$improved_seed <- yields$ag4a_19 == 1 & (yields$ag4a_23 %in% c(2, 3))
 
 percentile <- function(x) {
-    f <- ecdf(x)
-    f(x)
+  f <- ecdf(x)
+  f(x)
 }
 yields <- group_by(yields, crop_name, ag4a_15_unit) %>%
-    mutate(yield_percentile=percentile(yield)) %>%
-    ungroup()
+  mutate(yield_percentile=percentile(yield)) %>%
+  ungroup()
 
-yields <- select(yields, country, ls_id, hh_id, field_id, crop_name, 
+yields <- select(yields, country, landscape_no, hh_id, field_id, crop_name, 
                  yield, yield_percentile, yield_units=ag4a_15_unit,
                  improved_seed, planting_date)
 
