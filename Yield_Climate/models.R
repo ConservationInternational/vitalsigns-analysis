@@ -35,6 +35,8 @@ d$soil_quality <- as.numeric(d$soil_quality)
 d$landscape_no <- factor(d$landscape_no)
 d$country <- factor(d$country)
 
+d$cty_lsno <- factor(paste0(d$country, '-', d$landscape_no))
+
 ###############################################################################
 ### Do one regression per crop for the top three crops cultivated across VS 
 ### landscapes
@@ -81,7 +83,7 @@ ggsave('yield_by_country.png', width=12, height=8)
 d$yield_decile <- d$yield_percentile * 10
 
 maize <- lmer(yield_decile ~ spi12 + fert_org_any + fert_inorg_any + irrigation + 
-              improved_seed + ext_ag_prod + soil_quality + (1 | country/landscape_no),
+              improved_seed + ext_ag_prod + soil_quality + (1 | cty_lsno),
               data=filter(d, crop_name == 'Maize'))
 summary(maize)
 
