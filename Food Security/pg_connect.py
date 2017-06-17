@@ -9,7 +9,7 @@ con = psycopg2.connect(host=hostname, user=username, password=password, dbname=d
 
 cur = con.cursor()
 
-cur.execute("SELECT hh_refno, gpsse_lat, gpsse_long, end_date FROM householdcontact")
+cur.execute("SELECT hh_refno, gpsse_lat, gpsse_long, end_date FROM householdcontact WHERE round = '1'")
 
 out = cur.fetchall()
 
@@ -33,7 +33,7 @@ def maskvalues(img, vals):
     return(img)
 
 #Get PAs
-PA = ee.Image('users/mcooper/WDPA_AfriCrop_Mask')
+PA = ee.Image('users/mcooper/wdpa')
 
 #Get full raster stack
 forest13 = ee.Image("UMD/hansen/global_forest_change_2014")
@@ -86,6 +86,9 @@ ag_prd14 = prd14.multiply(maskvalues(cci14, cci_mask))
 ag_prd15 = prd15.multiply(maskvalues(cci15, cci_mask))
                         
 accum = pd.DataFrame()
+
+#Restart from the next line if memory limits are exceeded
+#out = out[out.index(row): ]
 for row in out:
     print row[0]
 
@@ -115,8 +118,13 @@ for row in out:
         fr_prod = {'fr_prod': fr_prod['b15']}
         ag_prod = {'ag_prod': ag_prod['b15']} 
     
+    time.sleep(1)
+    
     pop = pop15.reduceRegion(reducer=ee.Reducer.sum(), geometry=point).getInfo()
     mkt = mkt10.reduceRegion(reducer=ee.Reducer.mean(), geometry=point).getInfo()
+
+    
+    time.sleep(1)
 
     cci = rename_dict('cci_', cci['b1'])
     fr = rename_dict('for_', forest['treecover2000'])
@@ -127,5 +135,5 @@ for row in out:
     temp = pd.DataFrame(merge_dicts(cci, fr, head, pop, mkt, fr_prod, ag_prod), index = [0])
     
     accum = accum.append(temp)
-    
-    time.sleep(1)
+
+accum.to_csv('D://Documents and Settings/mcooper/GitHub/vitalsigns-analysis/Food Security/ee_export.csv', index=False)
