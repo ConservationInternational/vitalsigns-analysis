@@ -4,3 +4,4 @@
 *.csv
 *.tif
 *.connection.py
+*dssg-info.txt
