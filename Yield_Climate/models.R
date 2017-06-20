@@ -20,17 +20,20 @@ names(ls_spi)[names(ls_spi)=='date'] <- 'harvest_date'
 
 d <- left_join(d, ls_spi)
 
-ggplot(d) + geom_bar(aes(spi12))
+ggplot(d) + geom_bar(aes(spi12), binwidth = 0.5)
 table(is.na(d$spi12))
 table(d$harvest_date %in% ls_spi$harvest_date)
 
+#Examine why there are nas - some harvest dates are too recent, some are lacking a harvest date
 head(as.data.frame(d[is.na(d$spi12), ]))
 
 # Filter ridiculous yields
 d <- d[d$yield < 3000, ]
 
 # Convert soil quality to numeric for easier interpretation
-d$soil_quality <- as.numeric(d$soil_quality)
+d$soil_quality <- as.numeric(as.factor(d$soil_quality))
+
+
 
 d$landscape_no <- factor(d$landscape_no)
 d$country <- factor(d$country)
