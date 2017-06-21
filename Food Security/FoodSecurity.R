@@ -1,9 +1,7 @@
-setwd('D://Documents and Settings/mcooper/GitHub/vitalsigns-analysis/Food Security/')
-
 library(lubridate)
 library(dplyr)
 
-source('../production_connection.R')
+source('../dssg-info.txt')
 con <- src_postgres(dbname = dbname, host = host, port = port, user = user, password = password)
 
 library(aws.s3)
