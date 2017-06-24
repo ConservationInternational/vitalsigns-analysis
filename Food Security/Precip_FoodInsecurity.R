@@ -10,35 +10,35 @@ source('../production_connection.R')
 
 con <- src_postgres(dbname = dbname, host = host, port = port, user = user, password = password)
 
-df <- tbl(con, 'flagging__household_secI') %>% data.frame
+df <- tbl(con, 'c__household') %>% collect
 
-df1 <- df %>% select(Country, Landscape.., Round,
-            jan=hh_i09_2012_1,
-            feb=hh_i09_2012_2, 
-            mar=hh_i09_2012_3,
-            apr=hh_i09_2012_4,
-            may=hh_i09_2012_5,
-            jun=hh_i09_2012_6, 
-            jul=hh_i09_2012_7,
-            aug=hh_i09_2012_8, 
-            sep=hh_i09_2012_9, 
-            oct=hh_i09_2012_10,
-            nov=hh_i09_2012_11, 
-            dec=hh_i09_2012_12)
+df1 <- df %>% select(country, landscape_no, round,
+            jan=hh_i09a_1,
+            feb=hh_i09a_2, 
+            mar=hh_i09a_3,
+            apr=hh_i09a_4,
+            may=hh_i09a_5,
+            jun=hh_i09a_6, 
+            jul=hh_i09a_7,
+            aug=hh_i09a_8, 
+            sep=hh_i09a_9, 
+            oct=hh_i09a_10,
+            nov=hh_i09a_11, 
+            dec=hh_i09a_12)
 
-df2 <-  df %>% select(Country, Landscape.., Round,
-            jan=hh_i09_2013_1,
-            feb=hh_i09_2013_2,
-            mar=hh_i09_2013_3,
-            apr=hh_i09_2013_4,
-            may=hh_i09_2013_5,
-            jun=hh_i09_2013_6,
-            jul=hh_i09_2013_7,
-            aug=hh_i09_2013_8,
-            sep=hh_i09_2013_9,
-            oct=hh_i09_2013_10,
-            nov=hh_i09_2013_11,
-            dec=hh_i09_2013_12)
+df2 <-  df %>% select(country, landscape_no, round,
+            jan=hh_i09b_1,
+            feb=hh_i09b_2,
+            mar=hh_i09b_3,
+            apr=hh_i09b_4,
+            may=hh_i09b_5,
+            jun=hh_i09b_6,
+            jul=hh_i09b_7,
+            aug=hh_i09b_8,
+            sep=hh_i09b_9,
+            oct=hh_i09b_10,
+            nov=hh_i09b_11,
+            dec=hh_i09b_12)
 
 df3 <- bind_rows(df1, df2)
 
@@ -46,17 +46,17 @@ mean2 <- function(v){
   sum(v, na.rm=T)/length(v)
 }
 
-dfsum <- df3 %>% group_by(Country, Landscape.., Round) %>%
+dfsum <- df3 %>% group_by(country, landscape_no, round) %>%
   summarize(jan=mean2(jan), feb=mean2(feb),
             mar=mean2(mar), apr=mean2(apr),
             may=mean2(may), jun=mean2(jun),
             jul=mean2(jul), aug=mean2(aug),
             sep=mean2(sep), oct=mean2(oct),
             nov=mean2(nov), dec=mean2(dec)) %>%
-  melt(id.vars=c('Country', 'Landscape..', 'Round'))
+  melt(id.vars=c('country', 'landscape_no', 'round'))
   
 df_ls <- tbl(con, 'landscape') %>%
-  select(Country=country, Landscape..=landscape_no,
+  select(country=country, landscape_no=landscape_no,
          x=centerpoint_longitude, y=centerpoint_latitude) %>%
   merge(dfsum, all.y=T)
 
@@ -67,7 +67,7 @@ library(raster)
 r <- stack(paste0('precip/', list.files('precip/', pattern='.bil')))
 names(r) <- c('jan', 'oct', 'nov', 'dec', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep')
 
-ls <- df_ls[ , c('Country', 'Landscape..', 'x', 'y')] %>% unique
+ls <- df_ls[ , c('country', 'landscape_no', 'x', 'y')] %>% unique
 ls_sp <- SpatialPointsDataFrame(coords = ls[ , c('x', 'y')], data=ls)
 
 ls_sp_m <- extract(r, ls_sp, sp=T)@data
@@ -80,25 +80,31 @@ ls_sp_m$max <- apply(X = ls_sp_m[ , months],
 
 ls_sp_m[ , months] <- ls_sp_m[ , months]/ls_sp_m$max
 
-ls_m <- melt(ls_sp_m[ , c('Country', 'Landscape..', months)], id.vars=c('Country', 'Landscape..'))
+ls_m <- melt(ls_sp_m[ , c('country', 'landscape_no', months)], id.vars=c('country', 'landscape_no'))
 
-df_m <- merge(ls_m, df_ls, by=c('Country', 'Landscape..', 'variable'))
+df_m <- merge(ls_m, df_ls, by=c('country', 'landscape_no', 'variable'))
 
 df_m$variable <- as.numeric(df_m$variable)
 
 ggplot(df_m) + 
   geom_line(aes(variable, value.x), color='blue') + 
   geom_bar(aes(variable, value.y), stat='identity') + 
-  facet_grid(paste0(Country, Landscape.., Round) ~ .)
+  facet_grid(paste0(country, landscape_no, round) ~ .)
 ggsave('Insecurity_Months_PrecipLine.png', width=5, height=18)
 
 
-ggplot(df_m %>% filter(Country == 'UGA')) + 
+ggplot(df_m %>% filter(country == 'UGA')) + 
   geom_line(aes(variable, value.x), color='blue') + 
   geom_bar(aes(variable, value.y), stat='identity') + 
-  facet_grid(paste0(Landscape..) ~ .)
+  facet_grid(paste0(landscape_no) ~ .)
 
 ggsave('Insecuritys_Precip_Uganda.png')
+
+df_m <- df_m %>%
+  filter(round=='1') %>%
+  dplyr::select(country, landscape_no, month=variable, precip=value.x, hunger=value.y)
+
+write.csv(df_m, 'precip_hunger.csv', row.names=F)
 
 #Do it again but with the raw precip data.  plot lines and bars
 

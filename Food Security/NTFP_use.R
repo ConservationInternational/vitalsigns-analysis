@@ -2,7 +2,19 @@ setwd('D://Documents and Settings/mcooper/GitHub/vitalsigns-analysis/Food Securi
 
 library(aws.s3)
 library(dplyr)
+library(lubridate)
+detach("package:raster", unload=TRUE)
 aws.signature::use_credentials()
+
+source('../production_connection.R')
+#source('../local_connection.R')
+
+con <- src_postgres(dbname = dbname, host = host, port = port, user = user, password = password)
+
+df <- tbl(con, 'c__household') %>%
+  filter(round=='1') %>%
+  select(country, landscape_no, hh_refno, hh_interview_date) %>%
+  collect
 
 ee <- read.csv('ee_export.csv')
 
@@ -39,8 +51,25 @@ ag <- read.csv(text = rawToChar(obj)) %>%
   filter(round == '1') %>%
   select(hh_refno, total_ag_production_value, country, landscape_no)
 
+ph <- read.csv('precip_hunger.csv')
 
-all <- Reduce(f = merge, x=list(ee, fs, he, nr, ag))
+ph <- merge(ph, data.frame(month=c('jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'),
+                           month_num=seq(1,12)))
+ph$month <- ph$month_num
+ph$month_num <- NULL
+
+df$month <- as.numeric(substr(df$hh_interview_date, 6,7))
+
+load('ls_spi.Rdata')
+
+ls_spi$year <- substr(ls_spi$date, 1, 4) %>% as.numeric
+ls_spi$month <- substr(ls_spi$date, 6, 7) %>% as.numeric
+
+df$year <- substr(df$hh_interview_date, 1, 4) %>% as.numeric
+
+all <- Reduce(f = function(x, y){merge(x, y, all.x=T, all.y=F)}, 
+              x=list(df, ee, fs, he, nr, ag, ph, ls_spi))
+
 
 rescale <- function(x){
   x/max(x, na.rm=T)
@@ -56,22 +85,28 @@ for (r in resc_vars){
 }
 
 
-foodmod <- glmer(food ~ forest + nonag + market + pop + diversity + Food_As_Percent_Total_Spending + total_nonag_income + cost_expenditures + total_ag_production_value + 
-                   (1 | landscape_no) + (1 | country), data=all, family='binomial')
+all$ls_cty <- paste0(all$landscape_no, all$country)
+all$ls_cty <- factor(all$ls_cty)
+all$country <- factor(all$country)
+
+foodmod <- glmer(food ~ forest + nonag + market + pop + diversity + Food_As_Percent_Total_Spending + total_nonag_income + cost_expenditures + total_ag_production_value + #fr_prod + ag_prod + 
+                   spi12 + precip + hunger + 
+                   (1 | ls_cty) + (1 | country), data=all, family='binomial')
 summary(foodmod)
 
 
-nonfoodmod <- glmer(nonfood ~ forest + nonag + market + pop + diversity + Food_As_Percent_Total_Spending + total_nonag_income + cost_expenditures + total_ag_production_value + 
+nonfoodmod <- glmer(nonfood ~ forest + nonag + market + pop + diversity + Food_As_Percent_Total_Spending + total_nonag_income + cost_expenditures + total_ag_production_value + #fr_prod + ag_prod + 
+                      spi12 + precip + hunger + 
                    (1 | landscape_no) + (1 | country), data=all, family='binomial')
 summary(nonfoodmod)
 
 
 all$any <- all$food | all$nonfood
-anymod <- glmer(any ~ forest + nonag + market + pop + diversity + Food_As_Percent_Total_Spending + total_nonag_income + cost_expenditures + total_ag_production_value + 
-                      (1 | landscape_no) + (1 | country), data=all, family='binomial')
+anymod <- glmer(any ~ forest + nonag + market + pop + diversity + Food_As_Percent_Total_Spending + total_nonag_income + cost_expenditures + total_ag_production_value + #fr_prod + ag_prod + 
+                  spi12 + precip + hunger + (1 | landscape_no) + (1 | country), data=all, family='binomial')
 summary(anymod)
 
 
 library(ggplot2)
-ggplot(all) + geom_histogram(aes(x=ag, fill=country))
+ggplot(all) + geom_histogram(aes(x=ag_prod, fill=country))
   

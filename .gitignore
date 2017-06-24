@@ -3,5 +3,5 @@
 *.rds
 *.csv
 *.tif
-*.connection.py
+*connection.py
 *dssg-info.txt
