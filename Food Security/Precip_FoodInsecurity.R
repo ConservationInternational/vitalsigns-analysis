@@ -13,40 +13,27 @@ con <- src_postgres(dbname = dbname, host = host, port = port, user = user, pass
 df <- tbl(con, 'c__household') %>% collect
 
 df1 <- df %>% select(country, landscape_no, round,
-            jan=hh_i09a_1,
-            feb=hh_i09a_2, 
-            mar=hh_i09a_3,
-            apr=hh_i09a_4,
-            may=hh_i09a_5,
-            jun=hh_i09a_6, 
-            jul=hh_i09a_7,
-            aug=hh_i09a_8, 
-            sep=hh_i09a_9, 
-            oct=hh_i09a_10,
-            nov=hh_i09a_11, 
-            dec=hh_i09a_12)
+                     starts_with("hh_i09"), -hh_i09a, -hh_i09b)%>%
+  mutate(jan=hh_i09b_1 | hh_i09a_1,
+         feb=hh_i09b_2 | hh_i09a_2,
+         mar=hh_i09b_3 | hh_i09a_3,
+         apr=hh_i09b_4 | hh_i09a_4,
+         may=hh_i09b_5 | hh_i09a_5,
+         jun=hh_i09b_6 | hh_i09a_6,
+         jul=hh_i09b_7 | hh_i09a_7,
+         aug=hh_i09b_8 | hh_i09a_8,
+         sep=hh_i09b_9 | hh_i09a_9,
+         oct=hh_i09b_10 | hh_i09a_10,
+         nov=hh_i09b_11 | hh_i09a_11,
+         dec=hh_i09b_12 | hh_i09a_12) %>%
+  collect
 
-df2 <-  df %>% select(country, landscape_no, round,
-            jan=hh_i09b_1,
-            feb=hh_i09b_2,
-            mar=hh_i09b_3,
-            apr=hh_i09b_4,
-            may=hh_i09b_5,
-            jun=hh_i09b_6,
-            jul=hh_i09b_7,
-            aug=hh_i09b_8,
-            sep=hh_i09b_9,
-            oct=hh_i09b_10,
-            nov=hh_i09b_11,
-            dec=hh_i09b_12)
-
-df3 <- bind_rows(df1, df2)
 
 mean2 <- function(v){
   sum(v, na.rm=T)/length(v)
 }
 
-dfsum <- df3 %>% group_by(country, landscape_no, round) %>%
+dfsum <- df1 %>% group_by(country, landscape_no, round) %>%
   summarize(jan=mean2(jan), feb=mean2(feb),
             mar=mean2(mar), apr=mean2(apr),
             may=mean2(may), jun=mean2(jun),

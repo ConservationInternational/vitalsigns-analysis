@@ -10,10 +10,12 @@ vs_db <- src_postgres(dbname=dbname, host=host,
 
 # Need to join back to agric using the parent_id
 agric <- tbl(vs_db, 'c__household') %>%
+  filter(round=='1') %>%
   select(id, country, hh_refno, landscape_no) %>%
   collect()
 
 ext <- tbl(vs_db, 'c__household_extension') %>%
+  filter(round=='1') %>%
   select(parent_id, source_name,
          ext_ag_prod=ag12a_02_1,
          ext_ag_proc=ag12a_02_2,
@@ -48,8 +50,6 @@ group_by(ext, country, landscape_no) %>%
 # Collapse ext dataframe into a df with just an indicator of access to ag 
 # production extension:
 #
-# TODO: Note that some records are duplicated in agric, so until this is 
-# cleaned, the below could be throwing out the wrong data
 ext_final <- group_by(ext, country, landscape_no, hh_refno) %>%
   summarise(ext_ag_prod=sum(ext_ag_prod==1, na.rm=TRUE) > 0)
 group_by(ext_final, country, landscape_no) %>%
@@ -58,22 +58,25 @@ group_by(ext_final, country, landscape_no) %>%
   geom_bar(aes(landscape_no, ext_ag_prod_frac, fill=country), stat='identity') +
   facet_grid(country~.)
 
+
 ###############################################################################
 ### Inputs
-
-
+###############################
 inputs <- tbl(vs_db, "c__household_field_season") %>%
+  filter(round=='1') %>%
   select(id, hh_refno, irrigation=ag3a_34, ag3a_59,
          starts_with('ag3a_39_'), starts_with('ag3a_45_'), 
          soil_quality=ag3a_10) %>%
   collect()
 
 # What was the main type of pesticide/herbicide that you applied? 
+inputs$ag3a_59[is.na(inputs$ag3a_59)] <- 0
+
 inputs$pesticide <- inputs$ag3a_59 == 1
 inputs$herbicide <- inputs$ag3a_59 == 2
 inputs$fungicide <- inputs$ag3a_59 == 3
 
-inputs$fert_org_any <- with(inputs, ag3a_39_1 | ag3a_39_2 | ag3a_39_3 | 
+inputs$fert_org_any <- with(inputs, ag3a_39_1 | ag3a_39_2 | 
                               ag3a_39_4 | ag3a_39_5 | ag3a_39_6 | ag3a_39_7 | 
                               ag3a_39_8)
 
@@ -95,8 +98,8 @@ inputs <- select(inputs, id, hh_refno, fert_org_any,
 #   ag4a_15 - Amount
 #   ag4a_15_unit - Unit  {1: 'Kg', 2: 'Liter', 3: 'Milliliter'}
 
-# TODO: Need to work out units issue - a lot of units are missing
 yields <- tbl(vs_db, "c__household_field_season_fieldcrop") %>%
+  filter(round=='1') %>%
   filter(!is.na(ag4a_15_unit) & !is.na(ag4a_08) & !is.na(ag4a_15) & ag4a_08 > 0) %>%
   select(parent_id, crop_name, ag4a_08, ag4a_15, ag4a_15_unit,
          planting_date=ag4a_5a, ag4a_19, ag4a_23) %>%

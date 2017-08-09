@@ -5,3 +5,10 @@
 *.tif
 *connection.py
 *dssg-info.txt
+*.pdf
+*.dbf
+*.prj
+*.qpj
+*.shp
+*.shx
+*.cpg
