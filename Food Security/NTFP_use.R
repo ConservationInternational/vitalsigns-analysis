@@ -7,7 +7,10 @@ library(dplyr)
 library(lubridate)
 library(lme4)
 library(lmerTest)
+library(influence.ME)
 detach("package:raster", unload=TRUE)
+
+
 aws.signature::use_credentials()
 
 source('../production_connection.R')
@@ -42,7 +45,7 @@ fs <- read.csv(text = rawToChar(obj)) %>%
 obj <- get_object('HouseholdEconomy_HH.csv', bucket = 'vs-cdb-indicators')
 he <- read.csv(text = rawToChar(obj)) %>%
   filter(round=='1') %>%
-  select(hh_refno, total_nonag_income, cost_expenditures)
+  select(hh_refno, income_wage, net_income_business)
 
 obj <- get_object('NaturalResources_HH.csv', bucket = 'vs-cdb-indicators')
 nr <- read.csv(text = rawToChar(obj)) %>%
@@ -50,9 +53,16 @@ nr <- read.csv(text = rawToChar(obj)) %>%
   select(hh_refno, food, nonfood)
 
 obj <- get_object('Ag_HH.csv', bucket = 'vs-cdb-indicators')
-ag <- read.csv(text = rawToChar(obj)) %>%
+av <- read.csv(text = rawToChar(obj)) %>%
   filter(round == '1') %>%
-  select(hh_refno, total_ag_production_value, country, landscape_no)
+  select(hh_refno, total_ag_production_value, country, landscape_no,
+         number_of_fields, total_area_farmed, value_fieldcrop_harvest, value_permcrops, value_produced_livestock,
+         value_livestockbyprod_produced, net_ag_income, crop_commodification_index, value_produced_cropbyprods)
+
+obj <- get_object('Nutrition_HH.csv', bucket = 'vs-cdb-indicators')
+nt <- read.csv(text = rawToChar(obj)) %>%
+  filter(round == '1') %>%
+  select(hh_refno, mean_zlen, mean_zwei, mean_zwfl)
 
 ########################
 #SPI and pre-calculated seasonal vars
@@ -73,67 +83,83 @@ df$year <- substr(df$hh_interview_date, 1, 4) %>% as.numeric
 #####################
 ee <- read.csv('ee_export.csv')
 
-eeag <- paste0('cci_', c('10', '11', '12', '20', '30', '190', '200'))
-eenonag <- paste0('cci_', c('40', '50', '60', '61', '62', '80', '90', 
-                            '100', '110', '120', '122', '130', '160', '170', 
-                            '180'))
-eeagpa <- paste0('cciPA_', c('10', '11', '12', '20', '30', '190', '200'))
-eenonagpa <- paste0('cciPA_', c('40', '50', '60', '61', '62', '80', '90', 
-                                '100', '110', '120', '122', '130', '160', '170', 
-                                '180'))
+ee[is.na(ee)] <- 0
 
-ee$ag <- rowSums(ee[ , names(ee) %in% eeag], na.rm=T)/rowSums(ee[ , names(ee) %in% c(eenonag, eeag)], na.rm=T)
-ee$nonag <- rowSums(ee[ , names(ee) %in% eenonag], na.rm=T)/rowSums(ee[ , names(ee) %in% c(eenonag, eeag)], na.rm=T)
+ag <- paste0('cci_', c('10', '11', '12', '20', '190', '200'))
+savanna <- paste0('cci_', c('120', '122', '130', '180'))
+cciforest <- paste0('cci_', c('60', '61', '62', '80', '90', '160', '170'))
+mos_ag_fr <- 'cci_30'
+mos_fr_ag <- 'cci_40'
+mos_fr_sv <- 'cci_100'
+mos_sv_fr <- 'cci_110'
 
-ee$agpa <- rowSums(ee[ , names(ee) %in% eeagpa], na.rm=T)/rowSums(ee[ , names(ee) %in% c(eenonag, eeag)], na.rm=T)
-ee$nonagpa <- rowSums(ee[ , names(ee) %in% eenonagpa], na.rm=T)/rowSums(ee[ , names(ee) %in% c(eenonag, eeag)], na.rm=T)
+getPercetCover <- function(selcols, allcolmatch, df){
+  if(length(selcols) > 1){
+    selcolsum <- rowSums(df[ , selcols[selcols %in% names(df)]], na.rm=T)
+  } else{
+    selcolsum <- df[ , selcols]
+  }
+  allcolsum <- rowSums(df[ , grepl(allcolmatch, names(df))], na.rm=T)
+  return(selcolsum/allcolsum)
+}
 
-ee$area_protected <- (ee$ag - ee$agpa) + (ee$nonag - ee$nonagpa)
+ee$ag <- getPercetCover(c(ag, mos_ag_fr), 'cci_', ee)
+ee$savanna <- getPercetCover(c(savanna, mos_sv_fr), 'cci_', ee)
+ee$cciforest <- getPercetCover(c(cciforest, mos_fr_ag, mos_fr_sv), 'cci_', ee)
+ee$mos_ag_fr <- getPercetCover(mos_ag_fr, 'cci_', ee)
+ee$mos_fr_ag <- getPercetCover(mos_fr_ag, 'cci_', ee)
+ee$mos_fr_sv <- getPercetCover(mos_fr_sv, 'cci_', ee)
+ee$mos_sv_fr <- getPercetCover(mos_sv_fr, 'cci_', ee)
 
-ee$forest <- rowSums(ee[ , c('for_.1', 'for_1')], na.rm=T)/
-  rowSums(ee[ , c("for_.1", "for_0", "for_1", "for_2")], na.rm=T)
-ee$forestpa <- rowSums(ee[ , c('forPA_.1', 'forPA_1')], na.rm=T)/
-  rowSums(ee[ , c("for_.1", "for_0", "for_1", "for_2")], na.rm=T)
+ee$area_protected <- getPercetCover('PA_0.0', 'PA_', ee)
 
-ee <- ee %>% select(ag, nonag, forest,
-                    agpa, nonagpa, forestpa, area_protected,
-                    market, pop, hh_refno,
-                    mean_fr_prd, mean_nonag_prd, mean_ag_prd,
-                    sum_nonag_prd, sum_ag_prd, sum_fr_prd) %>%
+ee$forest <- getPercetCover(c('for_.1', 'for_1'), 'for_', ee)
+
+ee <- ee %>% select(ag, savanna, cciforest, mos_ag_fr,
+                    mos_fr_ag, mos_fr_sv, mos_sv_fr,
+                    forest, area_protected,
+                    market, pop, hh_refno) %>%
   filter(!duplicated(hh_refno))
 
-######################
+##################
 #Combine
 ##################
 all <- Reduce(f = function(x, y){merge(x, y, all.x=T, all.y=F)}, 
-              x=list(ge, hh, ee, fs, he, nr, ag, 
-                     df, ph, ls_spi))
-##################
+              x=list(ge, hh, ee, fs, he, nr, av, 
+                     df, ph, nt, ls_spi))# %>% na.omit
+
+
+all$type[!all$food & all$nonfood] <- 'None'
+all$type[all$food & all$nonfood] <- 'Both'
+all$type[all$food & !all$nonfood] <- 'Food'
+all$type[!all$food & all$nonfood] <- 'Nonfood'
+
+#####################
 #Summarize by Country
-####################
-sum <- all %>%
-  na.omit %>%
-  group_by(country) %>%
-  summarize(min(food), max(food), mean(food),
-            min(area_protected), max(area_protected), mean(area_protected),
-            min(nonag), max(nonag), mean(nonag),
-            min(forest), max(forest), mean(forest),
-            mean(head_gender=="Male"),
-            min(age), max(age), mean(age),
-            min(years), max(years), mean(years),
-            min(size), max(size), mean(size),
-            min(literate), max(literate), mean(literate),
-            min(market), max(market), mean(market),
-            min(pop), max(pop), mean(pop),
-            min(spi12), max(spi12), mean(spi12),
-            min(diversity), max(diversity), mean(diversity),
-            min(hunger), max(hunger), mean(hunger),
-            min(total_ag_production_value), max(total_ag_production_value), mean(total_ag_production_value),
-            min(total_nonag_income), max(total_nonag_income), mean(total_nonag_income),
-            min(cost_expenditures), max(cost_expenditures), mean(cost_expenditures),
-            n())
-write.csv(t(sum), 'summary_stats.csv',
-          col.names = F)
+#####################
+# sum <- all %>%
+#   na.omit %>%
+#   group_by(country) %>%
+#   summarize(min(food), max(food), mean(food),
+#             min(area_protected), max(area_protected), mean(area_protected),
+#             min(ag), max(ag), mean(ag),
+#             min(cciforest), max(cciforest), mean(cciforest),
+#             mean(head_gender=="Male"),
+#             min(age), max(age), mean(age),
+#             min(years), max(years), mean(years),
+#             min(size), max(size), mean(size),
+#             min(literate), max(literate), mean(literate),
+#             min(market), max(market), mean(market),
+#             min(pop), max(pop), mean(pop),
+#             min(spi12), max(spi12), mean(spi12),
+#             min(diversity), max(diversity), mean(diversity),
+#             min(hunger), max(hunger), mean(hunger),
+#             min(total_ag_production_value), max(total_ag_production_value), mean(total_ag_production_value),
+#             min(total_nonag_income), max(total_nonag_income), mean(total_nonag_income),
+#             min(net_income_business), max(net_income_business), mean(net_income_business),
+#             n())
+# write.csv(t(sum), 'summary_stats.csv',
+#           col.names = F)
 
 ######################
 #Rescale Vars and check co-linearity
@@ -142,16 +168,18 @@ rescale <- function(x){
   (x - mean(x, na.rm=T))/max(x, na.rm=T)
 }
 
-resc_vars <- c('ag', 'area_protected', 'nonag', 'forest', 'market', 'pop', 
-               'diversity', 'Food_As_Percent_Total_Spending', 
-               'total_nonag_income', 'cost_expenditures', 'total_ag_production_value', 
-               'forestpa', 'nonagpa', 'age', 'years', 'size',
-               "agpa", "months_insecurity", "number_meals", "hfias", 
-               "Nonfood.Spending", "Food.Consumption.Value", 
-               "Food.Spending",
-               "precip", "hunger", "spi6", "spi12", "spi24", "spi36",
-               'mean_fr_prd', 'mean_nonag_prd', 'mean_ag_prd',
-               'sum_nonag_prd', 'sum_ag_prd', 'sum_fr_prd')
+all$lpop <- log(all$pop)
+
+resc_vars <- c("years", "age", "size", "ag", "savanna",
+               "cciforest", "mos_ag_fr", "mos_fr_ag", "mos_fr_sv", "mos_sv_fr", 
+               "forest", "area_protected", "market", "pop", "shortage_year", 
+               "months_insecurity", "number_meals", "hfias", "diversity", "Nonfood.Spending", 
+               "Food.Consumption.Value", "Food.Spending", "Food_As_Percent_Total_Spending", 
+               "income_wage", "net_income_business", "total_ag_production_value", 
+               "number_of_fields", "total_area_farmed", "value_fieldcrop_harvest", 
+               "value_permcrops", "value_produced_livestock", "value_livestockbyprod_produced", 
+               "net_ag_income", "crop_commodification_index", "value_produced_cropbyprods", 
+               "precip", "hunger", "spi6", "spi12", "spi24", "spi36", "lpop")
 
 for (r in resc_vars){
   all[ , paste0(r, '_orig')] <- all[ , r]
@@ -162,22 +190,22 @@ all$ls_cty <- paste0(all$landscape_no, all$country)
 all$ls_cty <- factor(all$ls_cty)
 all$country <- factor(all$country)
 
-
-#Check for co-linearity
-corls <- c('ag', 'nonag', 'forest', 'market', 'pop', 
-           'diversity', 'Food_As_Percent_Total_Spending', 
-           'total_nonag_income', 'cost_expenditures', 'total_ag_production_value', 
-           'forestpa', 'nonagpa', 'age', 'years', 'size',
-           "agpa", "months_insecurity", "number_meals", "hfias", 
-           "Nonfood.Spending", "Food.Consumption.Value", 
-           "Food.Spending",
-           "precip", "hunger", "spi6", "spi12", "spi24", "spi36",
-           'mean_fr_prd', 'mean_nonag_prd', 'mean_ag_prd',
-           'sum_nonag_prd', 'sum_ag_prd', 'sum_fr_prd')
-
-cormat <- cor(na.omit(all[ , corls]))
-
-View(cormat > .75)
+# 
+# #Check for co-linearity
+# corls <- c("years", "age", "size", "ag", "savanna",
+# "cciforest", "mos_ag_fr", "mos_fr_ag", "mos_fr_sv", "mos_sv_fr", 
+# "forest", "area_protected", "market", "pop", "shortage_year", 
+# "months_insecurity", "number_meals", "hfias", "diversity", "Nonfood.Spending", 
+# "Food.Consumption.Value", "Food.Spending", "Food_As_Percent_Total_Spending", 
+# "income_wage", "net_income_business", "total_ag_production_value", 
+# "number_of_fields", "total_area_farmed", "value_fieldcrop_harvest", 
+# "value_permcrops", "value_produced_livestock", "value_livestockbyprod_produced", 
+# "net_ag_income", "crop_commodification_index", "value_produced_cropbyprods", 
+# "precip", "hunger", "spi6", "spi12", "spi24", "spi36", "total_nonag_income")
+# 
+# cormat <- cor(na.omit(all[ , corls]))
+# 
+# View(cormat > .7)
 #All SPIs are multicollinear - can only include one
 #precip is multicollinear with forest vars?
 #all pa vars corrlate with non pa counterparts
@@ -186,77 +214,84 @@ View(cormat > .75)
 
 
 ######################
-#Models
+#Landcover Models
+#######################
+
 foodmod <- glmer(food ~ 
                    #Land cover vars
-                   area_protected + forest + nonag + 
+                   area_protected + cciforest + savanna + 
                    #HH demographic vars
                    head_gender + age + years + size + literate + 
                    #Geographic control vars
-                   market + pop + spi12 +
+                   market + pop + spi12 + 
                    #Food secrity vars
-                   diversity + hunger + shortage_year + 
+                   precip + shortage_year + hfias + 
                    #Income vars
-                   total_ag_production_value + total_nonag_income + cost_expenditures +
-                   #productivity vars
-                   #ag_prod + #fr_prod
+                   total_ag_production_value + net_income_business +
+                   income_wage + Nonfood.Spending + Food.Spending + 
                    #Grouping vars
-                   (1 | ls_cty) + (1 | country),
-                   data=all, family='binomial',
-                   control=glmerControl(optCtrl=list(maxfun=2e4), optimizer='bobyqa'))
+                   (1 | ls_cty) + (1 | country), data=all, family='binomial',
+                 control=glmerControl(optCtrl=list(maxfun=2e4), optimizer='bobyqa'))
 summary(foodmod)
-
-
 
 nonfoodmod <- glmer(nonfood ~
                       #Land cover vars
-                      area_protected + forest + nonag + 
+                      area_protected + savanna + forest +
                       #HH demographic vars
-                      head_gender + age + years + size + literate +
+                      head_gender + age + years + size + literate + 
                       #Geographic control vars
-                      market + pop + spi12 +
+                      market + pop + spi12 + 
                       #Food secrity vars
-                      diversity + hunger + shortage_year +
+                      precip + shortage_year + hfias + 
                       #Income vars
-                      total_ag_production_value + total_nonag_income + cost_expenditures +
-                      #productivity vars
-                      #ag_prod + fr_prod + 
+                      total_ag_production_value + net_income_business +
+                      income_wage + Nonfood.Spending + Food.Spending + 
                       #Grouping vars
                       (1 | ls_cty) + (1 | country), data=all, family='binomial',
                     control=glmerControl(optCtrl=list(maxfun=2e4), optimizer='bobyqa'))
 summary(nonfoodmod)
 
 
-all$any <- all$food & all$nonfood
+all$any <- all$food | all$nonfood
 anymod <- glmer(any ~
                   #Land cover vars
-                  area_protected + forest + nonag + #forestpa + nonagpa +
+                  area_protected + savanna + cciforest +
                   #HH demographic vars
-                  head_gender + age + years + size + literate +
+                  head_gender + age + years + size + literate + 
                   #Geographic control vars
-                  market + pop + spi12 +
+                  market + pop + spi12 + 
                   #Food secrity vars
-                  #diversity + hunger + shortage_year + 
+                  precip + shortage_year + hfias + 
                   #Income vars
-                  total_ag_production_value + total_nonag_income + cost_expenditures +
-                  #productivity vars
-                  #ag_prod + fr_prod + 
+                  total_ag_production_value + net_income_business +
+                  income_wage + Nonfood.Spending + Food.Spending + 
                   #Grouping vars
                   (1 | ls_cty) + (1 | country), data=all, family='binomial',
                 control=glmerControl(optCtrl=list(maxfun=2e4), optimizer='bobyqa'))
 summary(anymod)
 
-
-############################
-#Explore Vars
-############################
-library(ggplot2)
-ggplot(all) + geom_histogram(aes(x=ag_prod_orig, fill=ls_cty))
-  
-
-ggplot(all) + geom_histogram(aes(x=hunger, fill=ls_cty))
+temp <- all %>% group_by(ls_cty) %>%
+  summarize(any=mean(any),
+            nonfood=mean(nonfood),
+            food=mean(food),
+            area_protected=mean(area_protected_orig),
+            savanna=mean(savanna_orig),
+            forest=mean(cciforest_orig))
 
 
-ggplot(all) + geom_histogram(aes(x=nonag_orig, fill=ls_cty))
+newdf <- all[names(residuals(foodmod)), c('country', 'hh_refno', 'landscape_no')]
+
+newdf$resid <- residuals(foodmod)
+
+newdf %>% group_by(country, landscape_no) %>% summarize(mean(resid)) %>% data.frame
 
 
+tmp <- all %>% 
+  group_by(country, landscape_no) %>% 
+  summarize(food=mean(food), nonfood=mean(nonfood), any=mean(any),
+            pop=mean(pop_orig, na.rm=T),
+            market=mean(market_orig, na.rm=T), spi12=mean(spi12_orig),
+            spi36=mean(spi36_orig), area_protected=mean(area_protected_orig, na.rm=T),
+            cciforest=mean(cciforest_orig, na.rm=T), savanna=mean(savanna_orig, na.rm=T),
+            forest=mean(forest_orig, na.rm=T)) %>% 
+  data.frame
