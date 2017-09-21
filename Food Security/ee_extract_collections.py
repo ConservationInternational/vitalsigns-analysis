@@ -1,7 +1,6 @@
 import psycopg2
 import ee
 import pandas as pd
-import time
 
 execfile('D:/Documents and Settings/mcooper/GitHub/vitalsigns-analysis/production_connection.py')
 
@@ -45,7 +44,7 @@ y2014 = []
 y2015 = []
 
 for row in out:
-    geom = ee.Geometry.Point(row[2], row[1]).buffer(10000)
+    geom = ee.Geometry.Point(row[2], row[1]).buffer(7500)
     feat = ee.Feature(geom, {'hh_refno':row[0], 'lat':row[1], 'long':row[2], 'date':str(row[3]),
                              'landscape_no':row[4], 'country':row[5]})
     if row[3].year == 2013:
@@ -101,18 +100,20 @@ for f in [f13, f14, f15]:
 #Get PAs
 PA = ee.Image('users/mcooper/wdpa')
 
-
-fpa13 = fcover13.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2013).getInfo()
-fpa14 = fcover14.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2014).getInfo()
-fpa15 = fcover15.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2015).getInfo()
-
-fpaaccum = pd.DataFrame()
-for f in [fpa13, fpa14, fpa15]:
-    for i in f['features']:
-        temp = pd.DataFrame(merge_dicts(rename_dict('forPA_', i['properties']['histogram']),
-                                        {'hh_refno': i['properties']['hh_refno']}), index = [0])
-        fpaaccum = fpaaccum.append(temp)
-
+#==============================================================================
+# 
+# fpa13 = fcover13.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2013).getInfo()
+# fpa14 = fcover14.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2014).getInfo()
+# fpa15 = fcover15.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2015).getInfo()
+# 
+# fpaaccum = pd.DataFrame()
+# for f in [fpa13, fpa14, fpa15]:
+#     for i in f['features']:
+#         temp = pd.DataFrame(merge_dicts(rename_dict('forPA_', i['properties']['histogram']),
+#                                         {'hh_refno': i['properties']['hh_refno']}), index = [0])
+#         fpaaccum = fpaaccum.append(temp)
+# 
+#==============================================================================
 ############################
 #Get all cci land cover
 ############################
@@ -135,16 +136,18 @@ for f in [cci13r, cci14r, cci15r]:
 ############################
 #Get all cci masking PAs
 ############################   
-cci13PA = cci13.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2013).getInfo()
-cci14PA = cci14.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2014).getInfo()
-cci15PA = cci15.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2015).getInfo()
-
-ccipaaccum = pd.DataFrame()
-for f in [cci13PA, cci14PA, cci15PA]:
-    for i in f['features']:
-        temp = pd.DataFrame(merge_dicts(rename_dict('cciPA_', i['properties']['histogram']),
-                                        {'hh_refno': i['properties']['hh_refno']}), index = [0])
-        ccipaaccum = ccipaaccum.append(temp)
+#==============================================================================
+# cci13PA = cci13.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2013).getInfo()
+# cci14PA = cci14.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2014).getInfo()
+# cci15PA = cci15.where(PA.eq(1), 0).reduceRegions(reducer=ee.Reducer.frequencyHistogram(), collection=y2015).getInfo()
+# 
+# ccipaaccum = pd.DataFrame()
+# for f in [cci13PA, cci14PA, cci15PA]:
+#     for i in f['features']:
+#         temp = pd.DataFrame(merge_dicts(rename_dict('cciPA_', i['properties']['histogram']),
+#                                         {'hh_refno': i['properties']['hh_refno']}), index = [0])
+#         ccipaaccum = ccipaaccum.append(temp)
+#==============================================================================
 
 ############################
 #Get total PA area
@@ -164,92 +167,109 @@ for p in [PA13r, PA14r, PA15r]:
 #Mean Ag Productivity
 ############################
 #Overall Productivity
-prd13 = ee.Image("users/mcooper/Integrals_2001_2015").select('b13')
-prd14 = ee.Image("users/mcooper/Integrals_2001_2015").select('b14')
-prd15 = ee.Image("users/mcooper/Integrals_2001_2015").select('b15')
-ag_mask = [10, 11, 12, 20, 30, 190, 200]
-
-a_prd13 = prd13.multiply(maskvalues(cci13, ag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2013).getInfo()
-a_prd14 = prd14.multiply(maskvalues(cci14, ag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2014).getInfo()
-a_prd15 = prd15.multiply(maskvalues(cci15, ag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2015).getInfo()
-
-agprdaccum = pd.DataFrame()
-for p in [a_prd13, a_prd14, a_prd15]:
-    for i in p['features']:
-        temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'mean_ag_prd': i['properties']['mean']}, index = [0])
-        agprdaccum = agprdaccum.append(temp)
+#==============================================================================
+# prd13 = ee.Image("users/mcooper/Integrals_2001_2015").select('b13')
+# prd14 = ee.Image("users/mcooper/Integrals_2001_2015").select('b14')
+# prd15 = ee.Image("users/mcooper/Integrals_2001_2015").select('b15')
+# ag_mask = [10, 11, 12, 20, 30, 190, 200]
+# 
+# a_prd13 = prd13.multiply(maskvalues(cci13, ag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2013).getInfo()
+# a_prd14 = prd14.multiply(maskvalues(cci14, ag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2014).getInfo()
+# a_prd15 = prd15.multiply(maskvalues(cci15, ag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2015).getInfo()
+# 
+# agprdaccum = pd.DataFrame()
+# for p in [a_prd13, a_prd14, a_prd15]:
+#     for i in p['features']:
+#         temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'mean_ag_prd': i['properties']['mean']}, index = [0])
+#         agprdaccum = agprdaccum.append(temp)
+#==============================================================================
 
 ############################
 #Mean Forest Productivity
 ############################
-fr_prd13 = prd13.multiply(maskvalues(fcover13, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.mean(), collection=y2013).getInfo()
-fr_prd14 = prd14.multiply(maskvalues(fcover14, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.mean(), collection=y2014).getInfo()
-fr_prd15 = prd15.multiply(maskvalues(fcover15, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.mean(), collection=y2015).getInfo()
-
-frprdaccum = pd.DataFrame()
-for p in [fr_prd13, fr_prd14, fr_prd15]:
-    for i in p['features']:
-        temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'mean_fr_prd': i['properties']['mean']}, index = [0])
-        frprdaccum = frprdaccum.append(temp)
+#==============================================================================
+# fr_prd13 = prd13.multiply(maskvalues(fcover13, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.mean(), collection=y2013).getInfo()
+# fr_prd14 = prd14.multiply(maskvalues(fcover14, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.mean(), collection=y2014).getInfo()
+# fr_prd15 = prd15.multiply(maskvalues(fcover15, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.mean(), collection=y2015).getInfo()
+# 
+# frprdaccum = pd.DataFrame()
+# for p in [fr_prd13, fr_prd14, fr_prd15]:
+#     for i in p['features']:
+#         temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'mean_fr_prd': i['properties']['mean']}, index = [0])
+#         frprdaccum = frprdaccum.append(temp)
+#==============================================================================
 
 ############################
 #Mean Non-Ag Productivity
 ############################
-#Non-Agricultural Areas
-nonag_mask = [40, 50, 60, 61, 62, 80, 90, 100, 110, 120, 122, 130, 160, 170, 180, 190]
-
-na_prd13 = prd13.multiply(maskvalues(cci13, nonag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2013).getInfo()
-na_prd14 = prd14.multiply(maskvalues(cci14, nonag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2014).getInfo()
-na_prd15 = prd15.multiply(maskvalues(cci15, nonag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2015).getInfo()
-
-naprdaccum = pd.DataFrame()
-for p in [fr_prd13, fr_prd14, fr_prd15]:
-    for i in p['features']:
-        temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'mean_nonag_prd': i['properties']['mean']}, index = [0])
-        naprdaccum = naprdaccum.append(temp)
+#==============================================================================
+# #Non-Agricultural Areas
+# nonag_mask = [40, 50, 60, 61, 62, 80, 90, 100, 110, 120, 122, 130, 160, 170, 180, 190]
+# 
+# na_prd13 = prd13.multiply(maskvalues(cci13, nonag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2013).getInfo()
+# na_prd14 = prd14.multiply(maskvalues(cci14, nonag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2014).getInfo()
+# na_prd15 = prd15.multiply(maskvalues(cci15, nonag_mask)).reduceRegions(reducer=ee.Reducer.mean(), collection=y2015).getInfo()
+# 
+# naprdaccum = pd.DataFrame()
+# for p in [fr_prd13, fr_prd14, fr_prd15]:
+#     for i in p['features']:
+#         temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'mean_nonag_prd': i['properties']['mean']}, index = [0])
+#         naprdaccum = naprdaccum.append(temp)
+#==============================================================================
 
 
 ############################
 #Sum Ag Productivity
 ############################
-a_prd13 = prd13.multiply(maskvalues(cci13, ag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2013).getInfo()
-a_prd14 = prd14.multiply(maskvalues(cci14, ag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2014).getInfo()
-a_prd15 = prd15.multiply(maskvalues(cci15, ag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2015).getInfo()
-
-sagprdaccum = pd.DataFrame()
-for p in [a_prd13, a_prd14, a_prd15]:
-    for i in p['features']:
-        temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'sum_ag_prd': i['properties']['sum']}, index = [0])
-        sagprdaccum = sagprdaccum.append(temp)
+#==============================================================================
+# a_prd13 = prd13.multiply(maskvalues(cci13, ag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2013).getInfo()
+# a_prd14 = prd14.multiply(maskvalues(cci14, ag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2014).getInfo()
+# a_prd15 = prd15.multiply(maskvalues(cci15, ag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2015).getInfo()
+# 
+# sagprdaccum = pd.DataFrame()
+# for p in [a_prd13, a_prd14, a_prd15]:
+#     for i in p['features']:
+#         temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'sum_ag_prd': i['properties']['sum']}, index = [0])
+#         sagprdaccum = sagprdaccum.append(temp)
+#==============================================================================
 
 ############################
 #Sum Forest Productivity
 ############################
-fr_prd13 = prd13.multiply(maskvalues(fcover13, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.sum(), collection=y2013).getInfo()
-fr_prd14 = prd14.multiply(maskvalues(fcover14, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.sum(), collection=y2014).getInfo()
-fr_prd15 = prd15.multiply(maskvalues(fcover15, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.sum(), collection=y2015).getInfo()
-
-sfrprdaccum = pd.DataFrame()
-for p in [fr_prd13, fr_prd14, fr_prd15]:
-    for i in p['features']:
-        temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'sum_fr_prd': i['properties']['sum']}, index = [0])
-        sfrprdaccum = sfrprdaccum.append(temp)
+#==============================================================================
+# fr_prd13 = prd13.multiply(maskvalues(fcover13, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.sum(), collection=y2013).getInfo()
+# fr_prd14 = prd14.multiply(maskvalues(fcover14, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.sum(), collection=y2014).getInfo()
+# fr_prd15 = prd15.multiply(maskvalues(fcover15, [-1, 0, 2, 9])).reduceRegions(reducer=ee.Reducer.sum(), collection=y2015).getInfo()
+# 
+# sfrprdaccum = pd.DataFrame()
+# for p in [fr_prd13, fr_prd14, fr_prd15]:
+#     for i in p['features']:
+#         temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'sum_fr_prd': i['properties']['sum']}, index = [0])
+#         sfrprdaccum = sfrprdaccum.append(temp)
+#==============================================================================
 
 ############################
 #Sum Non-Ag Productivity
 ############################
-na_prd13 = prd13.multiply(maskvalues(cci13, nonag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2013).getInfo()
-na_prd14 = prd14.multiply(maskvalues(cci14, nonag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2014).getInfo()
-na_prd15 = prd15.multiply(maskvalues(cci15, nonag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2015).getInfo()
+#==============================================================================
+# na_prd13 = prd13.multiply(maskvalues(cci13, nonag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2013).getInfo()
+# na_prd14 = prd14.multiply(maskvalues(cci14, nonag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2014).getInfo()
+# na_prd15 = prd15.multiply(maskvalues(cci15, nonag_mask)).reduceRegions(reducer=ee.Reducer.sum(), collection=y2015).getInfo()
+# 
+# snaprdaccum = pd.DataFrame()
+# for p in [fr_prd13, fr_prd14, fr_prd15]:
+#     for i in p['features']:
+#         temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'sum_nonag_prd': i['properties']['sum']}, index = [0])
+#         snaprdaccum = snaprdaccum.append(temp)
+#==============================================================================
+        
+###############################
+#Combine
+#############################
 
-snaprdaccum = pd.DataFrame()
-for p in [fr_prd13, fr_prd14, fr_prd15]:
-    for i in p['features']:
-        temp = pd.DataFrame({'hh_refno': i['properties']['hh_refno'], 'sum_nonag_prd': i['properties']['sum']}, index = [0])
-        snaprdaccum = snaprdaccum.append(temp)
-
-hh = reduce((lambda x, y: pd.merge(x, y, on='hh_refno')), [faccum, fpaaccum, cciaccum, ccipaaccum, agprdaccum, frprdaccum,
-                                                            naprdaccum, sagprdaccum, sfrprdaccum, snaprdaccum])
+hh = reduce((lambda x, y: pd.merge(x, y, on='hh_refno')), [faccum, cciaccum, paaccum#, fpaaccum, ccipaaccum, agprdaccum, frprdaccum,
+                                                            #naprdaccum, sagprdaccum, sfrprdaccum, snaprdaccum
+                                                            ])
 
 
 ls_cur = con.cursor()
@@ -267,7 +287,7 @@ for row in ls_out:
 ls = ee.FeatureCollection(ls)
 
 popaccum = pd.DataFrame()
-pop15 = ee.Image("CIESIN/GPWv4/population-count/2015").reduceRegions(reducer=ee.Reducer.sum(), collection=ls).getInfo()
+pop15 = ee.Image("users/mcooper/afripop").reduceRegions(reducer=ee.Reducer.sum(), collection=ls).getInfo()
 for i in pop15['features']:
     temp = pd.DataFrame({'country': i['properties']['country'], 'landscape_no': i['properties']['landscape_no'], 'pop': i['properties']['sum']}, index=[0])
     popaccum = popaccum.append(temp) 
